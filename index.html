@@ -201,6 +201,7 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
 <script src="diana-assets.js"></script>
 <script src="vendor/GLTFLoader.js"></script>
 <script src="diana-model.js"></script>
+<script src="diana-music.js"></script>
 <script>
 (function(){
 const $=id=>document.getElementById(id);
@@ -711,11 +712,15 @@ function clearWorld(){[...obstacles,...coinsArr,...powers,...pops].forEach(o=>sc
   dusts.forEach(d=>{scene.remove(d.s);d.s.material.dispose()});obstacles=[];coinsArr=[];powers=[];pops=[];dusts=[]}
 
 /* ---------- sound (synthesised, no files) ---------- */
-let AC=null,master,musicBus,noiseBuf,soundOn=store.get('dr_snd','1')==='1';
+let AC=null,master,musicBus,noiseBuf,fx,soundOn=store.get('dr_snd','1')==='1';
 function ensureAudio(){
   if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.7;master.connect(AC.destination);musicBus=AC.createGain();musicBus.gain.value=.55;musicBus.connect(master);
-    noiseBuf=AC.createBuffer(1,AC.sampleRate*.6,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}catch(e){AC=null}}
+    noiseBuf=AC.createBuffer(1,AC.sampleRate*.6,AC.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+    // эхо на точку с восьмой под темп трека: монеты и бонусы звенят в такт
+    fx=AC.createGain();fx.connect(master);const dl=AC.createDelay(.6);dl.delayTime.value=60/128.136*.75;const fb=AC.createGain();fb.gain.value=.28;const wet=AC.createGain();wet.gain.value=.3;
+    fx.connect(dl);dl.connect(fb);fb.connect(dl);dl.connect(wet);wet.connect(master)}catch(e){AC=null}}
   if(AC&&AC.state==='suspended')AC.resume();
+  loadMusic();startMusic();
 }
 const mtof=n=>440*2**((n-69)/12);
 function tone(f,t,dur,type,vol,f2,bus){const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+dur);
@@ -723,19 +728,35 @@ function tone(f,t,dur,type,vol,f2,bus){const o=AC.createOscillator(),g=AC.create
 function noise(t,dur,vol,ftype,freq,bus){const s=AC.createBufferSource();s.buffer=noiseBuf;const f=AC.createBiquadFilter();f.type=ftype;f.frequency.value=freq;const g=AC.createGain();
   g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);s.connect(f);f.connect(g);g.connect(bus||master);s.start(t);s.stop(t+dur+.03)}
 let coinStreak=0,lastCoinT=0;
+// звуки под техно: бас-удары (kick), шумовые «вуши» (sweep), звонкие ноты через эхо (fx)
+function kick(t,f0,f1,dur,vol,bus){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(f0,t);o.frequency.exponentialRampToValueAtTime(f1,t+dur*.8);
+  g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g);g.connect(bus||master);o.start(t);o.stop(t+dur+.02)}
+function sweep(t,dur,vol,type,f0,f1,q,bus){const sr=AC.createBufferSource();sr.buffer=noiseBuf;const f=AC.createBiquadFilter();f.type=type;f.Q.value=q||1;
+  f.frequency.setValueAtTime(f0,t);f.frequency.exponentialRampToValueAtTime(f1,t+dur);const g=AC.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+dur*.3);
+  g.gain.exponentialRampToValueAtTime(.0001,t+dur);sr.connect(f);f.connect(g);g.connect(bus||master);sr.start(t);sr.stop(t+dur+.03)}
 function sfx(n){if(!soundOn||!AC)return;const t=AC.currentTime;
   switch(n){
-    case'coin':{coinStreak=(t-lastCoinT<.5)?Math.min(coinStreak+1,7):0;lastCoinT=t;const b=79+[0,2,4,5,7,9,11,12][coinStreak];tone(mtof(b),t,.07,'square',.06);tone(mtof(b+5),t+.055,.12,'square',.06);break}
-    case'jump':tone(320,t,.22,'triangle',.2,900);break;
-    case'slide':noise(t,.28,.18,'lowpass',900);break;
-    case'lane':noise(t,.12,.07,'bandpass',2600);break;
-    case'bump':tone(180,t,.16,'square',.12,80);noise(t,.12,.15,'lowpass',600);break;
-    case'crash':noise(t,.6,.4,'lowpass',1300);tone(220,t,.55,'sawtooth',.16,38);break;
-    case'power':[0,4,7,12,16].forEach((k,i)=>tone(mtof(72+k),t+i*.055,.16,'square',.06));break;
-    case'go':tone(mtof(72),t,.12,'square',.07);tone(mtof(79),t+.12,.22,'square',.07);break;
+    case'coin':{coinStreak=(t-lastCoinT<.5)?Math.min(coinStreak+1,7):0;lastCoinT=t;const b=84+[0,2,4,5,7,9,11,12][coinStreak];
+      tone(mtof(b),t,.09,'triangle',.09,null,fx);tone(mtof(b+7),t+.05,.16,'sine',.08,null,fx);tone(mtof(b+19),t+.05,.12,'sine',.025,null,fx);break}
+    case'jump':sweep(t,.28,.22,'bandpass',500,3200,1.4);kick(t,140,320,.18,.16);break;
+    case'slide':sweep(t,.38,.2,'lowpass',2600,280,.8);kick(t,90,45,.25,.2);break;
+    case'lane':sweep(t,.14,.08,'highpass',1800,5200,.7);break;
+    case'land':kick(t,110,40,.16,.28);sweep(t,.12,.06,'lowpass',900,200);break;
+    case'bump':kick(t,130,38,.22,.45);noise(t,.07,.18,'bandpass',1500);break;
+    case'crash':kick(t,95,28,.6,.7);noise(t,.5,.35,'lowpass',1600);tone(420,t,.55,'sawtooth',.1,55);sweep(t+.05,.5,.12,'bandpass',3000,200,2);break;
+    case'power':[0,4,7,12,16].forEach((k,i)=>tone(mtof(76+k),t+i*.05,.16,'square',.045,null,fx));sweep(t,.35,.06,'highpass',2000,8000,.7,fx);break;
+    case'go':sweep(t,.45,.12,'bandpass',300,4000,1.5);tone(mtof(76),t+.3,.1,'square',.06);tone(mtof(83),t+.42,.22,'square',.06,null,fx);break;
   }}
+// музыка «Bounce Dark» из Suno: декодируется после первого касания и крутится петлёй по долям (точки петли в diana-music.js)
+let musicBuf=null,musicSrc=null,musicBusy=false;
+function loadMusic(){if(!AC||musicBuf||musicBusy||!window.DIANA_MUSIC)return;musicBusy=true;
+  const bin=Uint8Array.from(atob(window.DIANA_MUSIC.b64),c=>c.charCodeAt(0)).buffer;
+  AC.decodeAudioData(bin,b=>{musicBuf=b;startMusic()},()=>{musicBusy=false})}
+function startMusic(){if(!AC||!musicBuf||musicSrc||!soundOn)return;const sr=AC.createBufferSource(),L=window.DIANA_MUSIC.loop;
+  sr.buffer=musicBuf;sr.loop=true;sr.loopStart=L[0];sr.loopEnd=Math.min(L[1],musicBuf.duration);sr.connect(musicBus);sr.start(0,L[0]);musicSrc=sr}
+function stopMusic(){if(!musicSrc)return;try{musicSrc.stop()}catch(e){}musicSrc.disconnect();musicSrc=null}
 const CH=[[57,60,64],[53,57,60],[48,52,55],[55,59,62]],STEP=60/142/4;let mStep=0,mNext=0;
-function musicTick(){if(!soundOn||!AC||state!=='play')return;if(mNext<AC.currentTime)mNext=AC.currentTime+.05;
+function musicTick(){if(!soundOn||!AC||state!=='play'||window.DIANA_MUSIC)return;if(mNext<AC.currentTime)mNext=AC.currentTime+.05;
   while(mNext<AC.currentTime+.15){const t=mNext,s=mStep%16,bar=Math.floor(mStep/16)%4,ch=CH[bar];
     if(s%4===0){tone(mtof(ch[0]-12),t,.2,'triangle',.22,null,musicBus);tone(150,t,.13,'sine',.4,45,musicBus)}
     if(s%8===4)noise(t,.13,.16,'bandpass',1800,musicBus);
@@ -746,7 +767,10 @@ const SND_ON='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9h4l5-4v1
 const SND_OFF='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16 9l5 6M21 9l-5 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
 function paintSnd(){$('sndBtn').innerHTML=soundOn?SND_ON:SND_OFF;$('sndBtn').setAttribute('aria-label',soundOn?'Выключить звук':'Включить звук')}
 paintSnd();
-$('sndBtn').addEventListener('click',()=>{soundOn=!soundOn;store.set('dr_snd',soundOn?'1':'0');paintSnd();if(soundOn)ensureAudio()});
+$('sndBtn').addEventListener('click',()=>{soundOn=!soundOn;store.set('dr_snd',soundOn?'1':'0');paintSnd();if(soundOn)ensureAudio();else stopMusic()});
+// звук в браузерах разрешён только после касания: первое касание запускает музыку меню
+addEventListener('pointerdown',()=>{if(soundOn)ensureAudio()},{once:true});
+document.addEventListener('visibilitychange',()=>{if(!AC)return;if(document.hidden)AC.suspend();else if(soundOn)AC.resume()});
 function buzz(p){try{if(TG&&TG.HapticFeedback&&TG.isVersionAtLeast('6.1')){if(Array.isArray(p))TG.HapticFeedback.notificationOccurred('error');else TG.HapticFeedback.impactOccurred('medium');return}navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
 
 /* ---------- game state ---------- */
@@ -921,7 +945,7 @@ function update(dt){
   const gr=groundAt(P.x,P.y);
   if(gr.wall){if(gr.wall.off>.35){if(bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40)}}else if(hit())return}
   if(P.ground){if(gr.g>=P.y-.06)P.y=gr.g;else{P.ground=false;P.vy=0}}
-  if(!P.ground){P.vy-=G*dt;P.y+=P.vy*dt;if(P.y<=gr.g){const hard=P.vy<-6;P.y=gr.g;P.vy=0;P.ground=true;squash=.16;if(hard)spawnDust();if(jumpBuf>0)jump()}}
+  if(!P.ground){P.vy-=G*dt;P.y+=P.vy*dt;if(P.y<=gr.g){const hard=P.vy<-6;P.y=gr.g;P.vy=0;P.ground=true;squash=.16;if(hard){spawnDust();sfx('land')}if(jumpBuf>0)jump()}}
   P.gnd=gr.g;if(P.ground&&P.y>BH-.1)runStat.roof+=dz;
   if(P.slide>0&&P.ground)P.slide-=dt;
 
@@ -1022,6 +1046,7 @@ function loop(){
   else if(state==='menu'||state==='splash')updateMenu(dt);
   for(const c of coinsArr)if(state!=='play')c.m.rotation.y+=dt*2;
   if(mixer&&state!=='pause'&&state!=='countdown')mixer.update(dt);
+  if(musicSrc){const v=state==='play'?.5:(state==='menu'||state==='countdown')?.32:.14;musicBus.gain.setTargetAtTime(v,AC.currentTime,.25)}
   sun.position.set(P.x-7,16,6);sun.target.position.set(P.x,0,-5);
   renderer.render(scene,camera);
 }
@@ -1039,7 +1064,8 @@ if(TG){try{TG.ready();TG.expand();
     if(TG.isVersionAtLeast('7.7'))TG.disableVerticalSwipes();   // иначе свайп вниз (подкат) закрывает игру
     if(TG.isVersionAtLeast('6.1')){TG.setHeaderColor('#2a1446');TG.setBackgroundColor('#2a1446')}
     if(TG.isVersionAtLeast('8.0')&&/android|ios/.test(TG.platform))TG.requestFullscreen();
-    TG.onEvent('deactivated',()=>{if(state==='play'||state==='countdown'){state='pause';show('pause',true)}})}catch(e){}
+    TG.onEvent('deactivated',()=>{if(state==='play'||state==='countdown'){state='pause';show('pause',true)}if(AC)AC.suspend()});
+    TG.onEvent('activated',()=>{if(AC&&soundOn)AC.resume()})}catch(e){}
   if(TG_CLOUD)TG.CloudStorage.getItems(SYNC,(err,vals)=>{if(err||!vals)return;let ch=false;
     for(const k of SYNC){const v=vals[k];if(v&&store.get(k,null)==null){try{localStorage.setItem(k,v)}catch(e){}ch=true}}if(ch)reloadSave()})}
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!/localhost|127\.0\.0\.1|claude/.test(location.hostname))navigator.serviceWorker.register('sw.js').catch(()=>{});
@@ -1048,6 +1074,6 @@ if(AS.splash)$('menu').style.background=`linear-gradient(to bottom,rgba(42,20,70
 if(AS.diana_fail){$('ovImg').src=AS.diana_fail.src;$('ovImg').hidden=false}
 if(AS.coin)document.querySelectorAll('.coin-ico').forEach(e=>Object.assign(e.style,{background:`url(${AS.coin.src}) center/contain no-repeat`,boxShadow:'none'}));
 setTimeout(()=>{$('splash').classList.add('out');toMenu();setTimeout(()=>show('splash',false),550)},1900);
-window.__dr={get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
+window.__dr={get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
 })();
 </script>
