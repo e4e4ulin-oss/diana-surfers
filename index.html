@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#2a1446">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script defer src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Nunito:wght@800;900&display=swap">
 <style>
@@ -211,8 +211,8 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
   </div>
 </div>
 
-<script src="vendor/three.min.js"></script>
-<script src="vendor/GLTFLoader.js"></script>
+<script defer src="vendor/three.min.js"></script>
+<script defer src="vendor/GLTFLoader.js"></script>
 <script>
 // игра запускается загрузчиком после того, как подгружены картинки, модель и музыка
 window.__bootGame=function(){
@@ -328,7 +328,7 @@ const skylineTex=tex(512,128,(g,w,h)=>{
   g.fillStyle='#7cbd80';g.fillRect(0,h-6,w,6);
 });
 // картинки из ChatGPT лежат data URI в diana-assets.js; без него остаются нарисованные кодом заглушки
-const AS=window.DIANA_ASSETS||{},ATEX={},aspect=n=>AS[n]?AS[n].h/AS[n].w:1;
+const AS=window.DIANA_ASSETS||(window.DIANA_ASSETS={}),ATEX={},aspect=n=>AS[n]?AS[n].h/AS[n].w:1;
 function useAsset(n,t){if(!AS[n])return t;const im=new Image();im.onload=()=>{t.image=im;t.needsUpdate=true};im.src=AS[n].src;return t}
 function aTex(n){if(!AS[n])return null;if(!ATEX[n]){const t=new THREE.Texture();t.anisotropy=renderer.capabilities.getMaxAnisotropy();ATEX[n]=useAsset(n,t)}return ATEX[n]}
 const SPM={};
@@ -726,7 +726,7 @@ const mdlWrap=new THREE.Group();diana.add(mdlWrap);
 function playA(n,{once=false,fade=.15,ts=1}={}){const a=acts[n];if(!a)return;a.timeScale=ts;if(curAct===a)return;
   a.reset();a.setLoop(once?THREE.LoopOnce:THREE.LoopRepeat,Infinity);a.clampWhenFinished=once;a.setEffectiveWeight(1);
   if(curAct)a.crossFadeFrom(curAct,fade,false);a.play();curAct=a}
-if(window.DIANA_GLB&&THREE.GLTFLoader){
+function initModel(){if(mdl||initModel.busy||!window.DIANA_GLB||!THREE.GLTFLoader)return;initModel.busy=true;
   const bin=Uint8Array.from(atob(window.DIANA_GLB),c=>c.charCodeAt(0)).buffer;
   new THREE.GLTFLoader().parse(bin,'',g=>{
     // кости Mixamo в сантиметрах, рамка скинованной модели врёт; рост модели 1,753 м (замер в Blender), ведём к 1,9
@@ -741,9 +741,10 @@ if(window.DIANA_GLB&&THREE.GLTFLoader){
     const noHips=c=>{if(c)c.tracks=c.tracks.filter(t=>!/Hips\.position$/.test(t.name));return c};
     const C={idle:clip('idle'),run:clip('run'),wave:clip('wave'),fall:clip('fall'),bump:clip('bump'),jump:noHips(sub('jump',19,45)),slide:sub('slide',5,29)};
     for(const k in C)if(C[k])acts[k]=mixer.clipAction(C[k]);
-    playA(state==='play'?'run':'wave');applyOutfit();
+    playA(state==='play'||state==='dying'||state==='over'?'run':'wave');applyOutfit();
   },e=>console.warn('diana glb',e));
 }
+initModel();
 
 /* ---------- obstacles, coins, power-ups ---------- */
 const stripeTex=tex(128,32,(g,w,h)=>{g.fillStyle='#fff';g.fillRect(0,0,w,h);g.fillStyle='#ff4f9a';for(let i=-2;i<10;i++){g.beginPath();g.moveTo(i*24,h);g.lineTo(i*24+12,0);g.lineTo(i*24+24,0);g.lineTo(i*24+12,h);g.fill()}});
@@ -919,7 +920,7 @@ function startMusic(){if(!AC||!musicBuf||musicSrc||!soundOn)return;const sr=AC.c
   sr.buffer=musicBuf;sr.loop=true;sr.loopStart=L[0];sr.loopEnd=Math.min(L[1],musicBuf.duration);sr.connect(musicBus);sr.start(0,L[0]);musicSrc=sr}
 function stopMusic(){if(!musicSrc)return;try{musicSrc.stop()}catch(e){}musicSrc.disconnect();musicSrc=null}
 const CH=[[57,60,64],[53,57,60],[48,52,55],[55,59,62]],STEP=60/142/4;let mStep=0,mNext=0;
-function musicTick(){if(!soundOn||!AC||state!=='play'||window.DIANA_MUSIC)return;if(mNext<AC.currentTime)mNext=AC.currentTime+.05;
+function musicTick(){if(!soundOn||!AC||state!=='play'||window.DIANA_MUSIC||window.__musicPending)return;if(mNext<AC.currentTime)mNext=AC.currentTime+.05;
   while(mNext<AC.currentTime+.15){const t=mNext,s=mStep%16,bar=Math.floor(mStep/16)%4,ch=CH[bar];
     if(s%4===0){tone(mtof(ch[0]-12),t,.2,'triangle',.22,null,musicBus);tone(150,t,.13,'sine',.4,45,musicBus)}
     if(s%8===4)noise(t,.13,.16,'bandpass',1800,musicBus);
@@ -1268,10 +1269,15 @@ if(TG){try{TG.ready();TG.expand();
   if(TG_CLOUD)TG.CloudStorage.getItems(SYNC,(err,vals)=>{if(err||!vals)return;let ch=false;
     for(const k of SYNC){const v=vals[k];if(v&&store.get(k,null)==null){try{localStorage.setItem(k,v)}catch(e){}ch=true}}if(ch)reloadSave()})}
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)&&!/localhost|127\.0\.0\.1|claude/.test(location.hostname))navigator.serviceWorker.register('sw.js').catch(()=>{});
+function applyArt(){
 if(AS.logo){const l=document.querySelector('.logo');l.classList.add('art');l.innerHTML=`<img src="${AS.logo.src}" alt="Diana Surfers">`}
 if(AS.splash)$('menu').style.background=`linear-gradient(to bottom,rgba(42,20,70,0) 55%,rgba(42,20,70,.7)),url(${AS.splash.src}) center/cover`;
 if(AS.diana_fail){$('ovImg').src=AS.diana_fail.src;$('ovImg').hidden=false}
 if(AS.coin)document.querySelectorAll('.coin-ico').forEach(e=>Object.assign(e.style,{background:`url(${AS.coin.src}) center/contain no-repeat`,boxShadow:'none'}));
+}
+applyArt();
+// фоновые файлы сообщают о себе загрузчику, а он - сюда
+window.__lateLoaded=n=>{if(n==='diana-model.js')initModel();else if(n==='diana-assets2.js')applyArt();else if(n==='diana-music.js'){window.__musicPending=false;loadMusic()}};
 setTimeout(()=>{$('splash').classList.add('out');toMenu();setTimeout(()=>show('splash',false),550)},Math.max(250,1900-performance.now()));
 window.__dr={say,gameOver,get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
 };
@@ -1279,7 +1285,7 @@ window.__dr={say,gameOver,get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state
 <script>
 // загрузчик: тянет тяжёлые файлы с прогрессом (по http), на file:// - обычными тегами; потом запускает игру
 (function(){
-  const files=[['diana-assets.js',2864564],['diana-model.js',2815054],['diana-music.js',2426376]],total=files.reduce((a,f)=>a+f[1],0),done=files.map(()=>0);
+  const files=[['diana-assets.js',930000]],total=files.reduce((a,f)=>a+f[1],0),done=files.map(()=>0);
   const bar=document.getElementById('loadBar'),txt=document.getElementById('loadTxt');
   const upd=()=>{const pr=Math.min(1,done.reduce((a,b)=>a+b,0)/total);bar.style.width=(pr*100).toFixed(1)+'%';txt.textContent=Math.round(pr*100)+'%'};
   const viaTag=(f,i)=>new Promise(res=>{const el=document.createElement('script');el.src=f[0];el.onload=el.onerror=()=>{done[i]=f[1];upd();res()};document.head.appendChild(el)});
@@ -1288,8 +1294,14 @@ window.__dr={say,gameOver,get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state
     x.onload=()=>{if(x.status!==200&&x.status!==0)return rej();const el=document.createElement('script');el.text=x.responseText;document.head.appendChild(el);done[i]=f[1];upd();res()};
     x.onerror=rej;x.send()});
   const http=/^https?:$/.test(location.protocol);
-  Promise.all(files.map((f,i)=>http?viaXhr(f,i).catch(()=>viaTag(f,i)):viaTag(f,i))).then(()=>{window.__bootGame();
-    // озвучка реплик Дианы необязательна: нет файла - остаются только облачка
-    const v=document.createElement('script');v.src='diana-voice.js';v.onerror=()=>v.remove();document.head.appendChild(v)});
+  // остальное докачивается по очереди уже после старта: сначала модель, потом картинки дальних мест, музыка, голос
+  const late=['diana-model.js','diana-assets2.js','diana-music.js','diana-voice.js'];
+  const loadLate=i=>{if(i>=late.length)return;const el=document.createElement('script');el.src=late[i];
+    el.onload=()=>{try{window.__lateLoaded&&window.__lateLoaded(late[i])}catch(e){console.warn(e)}loadLate(i+1)};
+    el.onerror=()=>{if(late[i]==='diana-music.js')window.__musicPending=false;el.remove();loadLate(i+1)};document.head.appendChild(el)};
+  window.__musicPending=true;
+  // three.js и Telegram подключены с defer, чтобы не держать заставку: ждём их вместе с картинками
+  const domReady=new Promise(r=>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',r):r());
+  Promise.all([domReady,...files.map((f,i)=>http?viaXhr(f,i).catch(()=>viaTag(f,i)):viaTag(f,i))]).then(()=>{window.__bootGame();loadLate(0)});
 })();
 </script>
