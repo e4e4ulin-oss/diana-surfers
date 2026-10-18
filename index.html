@@ -1015,13 +1015,13 @@ function show(id,on){$(id).hidden=!on}
 let curSec=-1,secTimer=0;
 function showSec(name){$('secTxt').textContent=name;$('secTag').classList.add('show');clearTimeout(secTimer);secTimer=setTimeout(()=>$('secTag').classList.remove('show'),3200)}
 /* ---------- реплики Дианы: её словечки из голосовых, облачко + озвучка, если есть diana-voice.js ---------- */
-const LINES={hello:['Приветик!','Привет, Жень, только проснулась.','Босс цифрового мира!'],start:['Так, сейчас надо внимательно.','Это же я там!','Короче, погнали.'],
+const LINES={hello:['Приветик!','Босс цифрового мира!'],start:['Так, сейчас надо внимательно.','Это же я там!','Короче, погнали.'],
   coins:['Прикинь просто!','Ну капец!'],jump:['Чтоооо?'],power:['Офигеть!','Так прикольно!'],mission:['Так как я ответственный человек, значит, я довожу до конца.'],
   bump:['Ай, блин!','Ненавижу!'],fall:['Чё было, то было.','Максимум две минуты, и я могу проиграть, и всё.','Не тот момент, короче.'],chance:['Клянись!'],revive:['Нет! Всё, проснулась!'],
   record:['Главное, что всё прошло успешно, даже более чем.','Короче, я взяла первое место!'],long:['Ну, это кончилось или нет?'],night:['Странные чувства.'],bridge:['Видишь?'],
   fedin:['Скажи хотя бы примерно, сколько ещё.'],tired:['Я не могу двигаться!'],ok:['Ну давай.'],okay:['Ну, ладно.']};
-// имя аудиофайла в diana-voice.js: hello, hello2, smart (третье приветствие), start2, start3...
-const voiceName=(k,i)=>k==='hello'&&i===2?'smart':i?k+(i+1):k;
+// имя аудиофайла в diana-voice.js: hello, smart (второе приветствие), start2, start3...
+const voiceName=(k,i)=>k==='hello'&&i===1?'smart':i?k+(i+1):k;
 const sayEl=$('say'),voiceBufs={};let sayT=0,sayUntil=0,sayPrio=0,lastLine='',sayFlags={};
 function say(k,o={}){const now=performance.now(),pr=o.prio||0;
   if(now<sayUntil&&pr<=sayPrio)return;if(!pr&&now-sayT<(o.gap||6000))return;if(o.p!=null&&Math.random()>o.p)return;
