@@ -75,6 +75,10 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
 .pw .bar i{display:block;height:100%;background:var(--gold);border-radius:3px}
 .toast{position:absolute;left:0;right:0;top:28%;text-align:center;font-family:var(--display);font-weight:900;font-size:clamp(34px,10vw,56px);color:var(--gold);opacity:0;--o:var(--plum);text-shadow:3px 3px 0 var(--o),-3px 3px 0 var(--o),3px -3px 0 var(--o),-3px -3px 0 var(--o),0 6px 0 var(--o)}
 .toast.show{animation:toast 1s ease-out both}
+/* реплики Дианы: облачко над головой, следует за ней */
+#say{position:fixed;left:0;top:0;z-index:25;pointer-events:none;width:max-content;max-width:min(70vw,300px);padding:9px 14px;border-radius:18px;background:#fff7ea;color:var(--plum);font-weight:800;font-size:clamp(14px,4.2vw,18px);line-height:1.25;text-align:center;box-shadow:0 4px 0 rgba(42,20,70,.35);opacity:0;transform:translate(-50%,-100%) scale(.6);transition:opacity .18s,transform .18s}
+#say::after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-9px;border:9px solid transparent;border-bottom:0;border-top-color:#fff7ea}
+#say.show{opacity:1;transform:translate(-50%,-100%) scale(1)}
 .sec{position:absolute;left:max(14px,env(safe-area-inset-left,0px));bottom:calc(var(--sab) + 18px);display:flex;align-items:center;gap:8px;background:rgba(42,20,70,.8);color:#fff;font-weight:900;font-size:15px;padding:8px 14px 8px 10px;border-radius:14px;transform:translateX(calc(-100% - 30px));transition:transform .45s cubic-bezier(.2,1.4,.4,1)}
 .sec.show{transform:none}
 .sec svg{width:18px;height:18px;color:var(--gold);flex:none}
@@ -177,6 +181,7 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
   </div>
 </div>
 
+<div id="say"></div>
 <div id="chance" class="screen dim" hidden>
   <div class="card">
     <h2>Ещё шанс?</h2>
@@ -670,7 +675,7 @@ let todKey='',todLoop=-1;const tA=new THREE.Color(),tB=new THREE.Color();
 const lerpHex=(a,b,f)=>tA.set(a).lerp(tB.set(b),f).getHex(),lerpCss=(a,b,f)=>'#'+tA.set(a).lerp(tB.set(b),f).getHexString();
 function applyTime(d){const k=Math.max(0,Math.floor(d/LOOP)),cur=PRE[k%3],prev=PRE[(k+2)%3];
   let f=k===0?1:Math.min(1,(d-k*LOOP)/140);f=f*f*(3-2*f);const key=k+':'+f.toFixed(3);if(key===todKey)return;todKey=key;
-  if(k!==todLoop){if(k>0&&state==='play')toast(cur.name);todLoop=k}
+  if(k!==todLoop){if(k>0&&state==='play'){toast(cur.name);if(cur.name==='Ночь')setTimeout(()=>say('night',{prio:1}),1300)}todLoop=k}
   const g=skyCv.getContext('2d'),gr=g.createLinearGradient(0,0,0,256);
   gr.addColorStop(0,lerpCss(prev.sky[0],cur.sky[0],f));gr.addColorStop(.5,lerpCss(prev.sky[1],cur.sky[1],f));gr.addColorStop(1,lerpCss(prev.sky[2],cur.sky[2],f));
   g.fillStyle=gr;g.fillRect(0,0,4,256);skyTex.needsUpdate=true;
@@ -948,7 +953,7 @@ const MT={coins:{t:n=>`Собери ${n} монет за забег`,b:[40,80,15
 let missions=null;try{missions=JSON.parse(store.get('dr_missions','null'))}catch(e){}
 function newMissions(){const lv=Math.min(4,mult-1);missions=Object.keys(MT).sort(()=>Math.random()-.5).slice(0,3).map(k=>({k,n:MT[k].b[lv],done:false}));store.set('dr_missions',JSON.stringify(missions))}
 if(!Array.isArray(missions)||missions.length!==3||missions.some(m=>!MT[m.k]))newMissions();
-function checkMissions(){let ch=false;for(const m of missions)if(!m.done&&runStat[m.k]>=m.n){m.done=true;ch=true;toast('Задание выполнено!');sfx('power')}
+function checkMissions(){let ch=false;for(const m of missions)if(!m.done&&runStat[m.k]>=m.n){m.done=true;ch=true;toast('Задание выполнено!');sfx('power');say('mission',{prio:2})}
   if(!ch)return;if(missions.every(m=>m.done)){mult=Math.min(30,mult+1);store.set('dr_mult',String(mult));setTimeout(()=>toast('Множитель ×'+mult+'!'),1100);newMissions();$('mmTag').textContent='×'+mult;$('mmTag').hidden=false}
   else store.set('dr_missions',JSON.stringify(missions))}
 function renderMissions(){$('misList').innerHTML=missions.map(m=>`<div class="mis${m.done?' done':''}"><span class="ok">${m.done?'✓':''}</span><span>${MT[m.k].t(m.n)}</span></div>`).join('');$('multTxt').textContent=$('multTxt2').textContent='×'+mult}
@@ -1009,11 +1014,38 @@ function toast(txt){ui.toast.textContent=txt;ui.toast.classList.remove('show');v
 function show(id,on){$(id).hidden=!on}
 let curSec=-1,secTimer=0;
 function showSec(name){$('secTxt').textContent=name;$('secTag').classList.add('show');clearTimeout(secTimer);secTimer=setTimeout(()=>$('secTag').classList.remove('show'),3200)}
+/* ---------- реплики Дианы: её словечки из голосовых, облачко + озвучка, если есть diana-voice.js ---------- */
+const LINES={hello:['Приветик!','Привет, Жень, только проснулась.','Босс цифрового мира!'],start:['Так, сейчас надо внимательно.','Это же я там!','Короче, погнали.'],
+  coins:['Прикинь просто!','Ну капец!'],jump:['Чтоооо?'],power:['Офигеть!','Так прикольно!'],mission:['Так как я ответственный человек, значит, я довожу до конца.'],
+  bump:['Ай, блин!','Ненавижу!'],fall:['Чё было, то было.','Максимум две минуты, и я могу проиграть, и всё.','Не тот момент, короче.'],chance:['Клянись!'],revive:['Нет! Всё, проснулась!'],
+  record:['Главное, что всё прошло успешно, даже более чем.','Короче, я взяла первое место!'],long:['Ну, это кончилось или нет?'],night:['Странные чувства.'],bridge:['Видишь?'],
+  fedin:['Скажи хотя бы примерно, сколько ещё.'],tired:['Я не могу двигаться!'],ok:['Ну давай.'],okay:['Ну, ладно.']};
+// имя аудиофайла в diana-voice.js: hello, hello2, smart (третье приветствие), start2, start3...
+const voiceName=(k,i)=>k==='hello'&&i===2?'smart':i?k+(i+1):k;
+const sayEl=$('say'),voiceBufs={};let sayT=0,sayUntil=0,sayPrio=0,lastLine='',sayFlags={};
+function say(k,o={}){const now=performance.now(),pr=o.prio||0;
+  if(now<sayUntil&&pr<=sayPrio)return;if(!pr&&now-sayT<(o.gap||6000))return;if(o.p!=null&&Math.random()>o.p)return;
+  const v=LINES[k];let i=Math.floor(Math.random()*v.length);if(v.length>1&&v[i]===lastLine)i=(i+1)%v.length;lastLine=v[i];
+  sayEl.textContent=v[i];sayEl.classList.add('show');const dur=Math.min(4200,1400+v[i].length*45);sayT=now;sayUntil=now+dur;sayPrio=pr;
+  clearTimeout(say.h);say.h=setTimeout(()=>{sayEl.classList.remove('show');sayPrio=0},dur);sayTick();playVoice(voiceName(k,i))}
+function sayHide(){clearTimeout(say.h);sayEl.classList.remove('show');sayUntil=0;sayPrio=0}
+function playVoice(n){const V=window.DIANA_VOICE;if(!V||!V[n]||!AC||!soundOn)return;
+  const go=b=>{const s=AC.createBufferSource(),g=AC.createGain();g.gain.value=1.1;s.buffer=b;s.connect(g);g.connect(master);s.start()};
+  if(voiceBufs[n])return go(voiceBufs[n]);const bin=atob(V[n]),u=new Uint8Array(bin.length);for(let k=0;k<bin.length;k++)u[k]=bin.charCodeAt(k);
+  AC.decodeAudioData(u.buffer,b=>{voiceBufs[n]=b;go(b)},()=>{})}
+const sayV=new THREE.Vector3();
+function sayTick(){if(!sayEl.classList.contains('show'))return;
+  // на экране проигрыша облачко у картинки Дианы вверху карточки, а не поверх кнопок
+  const img=$('ovImg');if(state==='over'&&!img.hidden&&img.offsetHeight){const r=img.getBoundingClientRect();sayEl.style.left=Math.min(innerWidth-sayEl.offsetWidth/2-12,r.left+r.width*.5+110)+'px';sayEl.style.top=Math.max(r.top+r.height*.55,sayEl.offsetHeight+10)+'px';return}
+  if(state==='chance'){const r=$('chance').querySelector('.card').getBoundingClientRect();sayEl.style.left=innerWidth/2+'px';sayEl.style.top=(r.top-14)+'px';return}
+  diana.getWorldPosition(sayV);sayV.y+=state==='menu'?2.25:(state==='dying'||state==='chance'||state==='over')?1.3:2.5;sayV.project(camera);
+  const x=(sayV.x*.5+.5)*innerWidth,y=(-sayV.y*.5+.5)*innerHeight;sayEl.style.left=Math.max(90,Math.min(innerWidth-90,x))+'px';sayEl.style.top=Math.max(110,y)+'px'}
 
 function poseReset(){mdlWrap.rotation.set(0,0,0);mdlWrap.scale.set(1,1,1);bumpAnim=0;inner.rotation.set(0,0,0);inner.position.set(0,0,0);inner.scale.set(1,1,1);squash=0;[legL,legR,armL,armR].forEach(l=>l.rotation.set(0,0,0));tail.rotation.set(0,0,0)}
 function toMenu(){
   state='menu';clearWorld();resetWorld();poseReset();P.x=0;P.y=0;diana.position.set(0,0,0);shadow.position.x=0;
   refreshMenu();show('menu',true);show('sndBtn',true);show('hud',false);show('over',false);show('pause',false);show('chance',false);show('tut',false);diana.visible=true;
+  sayHide();setTimeout(()=>{if(state==='menu')say('hello',{prio:1})},1200);
 }
 function startGame(){
   ensureAudio();clearWorld();resetWorld();curSec=-1;poseReset();
@@ -1022,16 +1054,16 @@ function startGame(){
   contUsed=0;invT=0;superT=0;slowMo=1;tutNeed=null;tutStep=0;runStat={coins:0,dist:0,jumps:0,slides:0,roof:0,powers:0};
   diana.rotation.y=0;diana.visible=true;state='play';$('mmTag').textContent='×'+mult;$('mmTag').hidden=mult<2;
   show('menu',false);show('over',false);show('pause',false);show('chance',false);show('missions',false);show('shop',false);show('tut',false);show('hud',true);show('sndBtn',false);
-  toast('Беги!');sfx('go');
+  toast('Беги!');sfx('go');sayHide();sayFlags={};setTimeout(()=>{if(state==='play')say('start',{prio:1})},1100);
 }
 // неуязвимость после «Ещё шанса»: столкновения не считаются
 function hit(){if(invT>0)return false;gameOver();return true}
 const CONT_COST=50;let chanceTimer=0;
 function gameOver(){
-  state='dying';dieT=0;shake=.45;sfx('crash');buzz([60,40,120]);tutNeed=null;slowMo=1;show('tut',false);
+  state='dying';dieT=0;shake=.45;sfx('crash');say('fall',{prio:3});buzz([60,40,120]);tutNeed=null;slowMo=1;show('tut',false);
   setTimeout(()=>{if(state!=='dying')return;const cost=CONT_COST*contUsed;if(cost===0||wallet+coins>=cost)offerChance(cost);else finishRun()},1000);
 }
-function offerChance(cost){state='chance';$('contCost').textContent=cost?'За '+cost+' монет':'Бесплатно';show('chance',true);
+function offerChance(cost){state='chance';setTimeout(()=>{if(state==='chance')say('chance',{prio:4})},600);$('contCost').textContent=cost?'За '+cost+' монет':'Бесплатно';show('chance',true);
   const bar=$('chanceBar'),t0=performance.now();clearInterval(chanceTimer);
   chanceTimer=setInterval(()=>{const k=1-(performance.now()-t0)/5000;bar.style.width=Math.max(0,k*100)+'%';if(k<=0){clearInterval(chanceTimer);if(state==='chance')finishRun()}},50);
   $('contBtn').onclick=()=>{if(state!=='chance')return;clearInterval(chanceTimer);doContinue(cost)};
@@ -1040,14 +1072,14 @@ function doContinue(cost){const fromRun=Math.min(coins,cost);coins-=fromRun;wall
   for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];if(o.z>-30&&o.z-(o.len||0)<12){scene.remove(o.m);dispose(o.m);obstacles.splice(i,1)}}
   Object.assign(P,{y:0,vy:0,ground:true,slide:0,gnd:0});poseReset();invT=3;
   if(mdl){playA('run',{fade:0});mixer.update(.01)}
-  state='countdown';cdT=2;cdShown=0;clock.getDelta()}
+  state='countdown';cdT=2;cdShown=0;clock.getDelta();say('revive',{prio:4})}
 function finishRun(){const s=Math.floor(score),isNew=s>best;if(isNew){best=s;store.set('dianaRunBest',String(best))}
   wallet+=coins;store.set('dr_wallet',String(wallet));show('chance',false);
-  $('ovScore').textContent=s;$('ovCoins').textContent=coins;$('ovBest').textContent=best;show('ovNew',isNew);show('over',true);state='over'}
+  $('ovScore').textContent=s;$('ovCoins').textContent=coins;$('ovBest').textContent=best;show('ovNew',isNew);show('over',true);state='over';if(isNew&&s>0)setTimeout(()=>say('record',{prio:5}),500)}
 
 /* ---------- input ---------- */
 function lane(d){if(state!=='play')return;const n=Math.max(0,Math.min(2,P.lane+d));if(n!==P.lane){P.prev=P.lane;P.lane=n;sfx('lane');tutAct('lane')}}
-function jump(){if(state!=='play')return;if(!P.ground){jumpBuf=.18;return}jumpBuf=0;P.vy=JV*(superT>0?1.45:1);P.ground=false;P.slide=0;sfx('jump');runStat.jumps++;tutAct('jump')}
+function jump(){if(state!=='play')return;if(!P.ground){jumpBuf=.18;return}jumpBuf=0;P.vy=JV*(superT>0?1.45:1);P.ground=false;if(superT>0)say('jump',{p:.25,gap:9000});P.slide=0;sfx('jump');runStat.jumps++;tutAct('jump')}
 function slide(){if(state!=='play')return;jumpBuf=0;if(!P.ground)P.vy=Math.min(P.vy,-17);P.slide=.72;sfx('slide');runStat.slides++;tutAct('slide')}
 addEventListener('keydown',e=>{
   const k=e.key;
@@ -1067,8 +1099,8 @@ addEventListener('pointermove',e=>{if(!swiping)return;const dx=e.clientX-sx,dy=e
   if(dir==='l')lane(-1);else if(dir==='r')lane(1);else if(dir==='u')jump();else slide()});
 addEventListener('pointerup',()=>swiping=false);addEventListener('pointercancel',()=>swiping=false);
 $('playBtn').addEventListener('click',startGame);$('againBtn').addEventListener('click',startGame);
-$('pauseBtn').addEventListener('click',()=>{if(state==='play'){state='pause';show('pause',true)}});
-$('resumeBtn').addEventListener('click',()=>{show('pause',false);state='countdown';cdT=3;cdShown=0;clock.getDelta()});
+$('pauseBtn').addEventListener('click',()=>{if(state==='play'){state='pause';show('pause',true);say('ok',{prio:1})}});
+$('resumeBtn').addEventListener('click',()=>{show('pause',false);say('okay',{prio:1});state='countdown';cdT=3;cdShown=0;clock.getDelta()});
 $('menuBtn1').addEventListener('click',toMenu);$('menuBtn2').addEventListener('click',toMenu);
 // «Похвастаться»: в Telegram - выбор чата с готовым текстом, в браузере - меню «Поделиться» или копирование
 const GAME_LINK='https://t.me/dianasurfer_bot/play';
@@ -1094,7 +1126,10 @@ function update(dt){
   speed=Math.min(MAXS,speed+dt*.1);
   const dz=speed*dt;score+=dz*.5*mult*(doubleT>0?2:1);
   moveWorld(dz);applyTime(worldD);
-  const sec=sectionAt(worldD);if(sec!==curSec){curSec=sec;showSec(ROUTE[sec].name)}
+  const sec=sectionAt(worldD);if(sec!==curSec){curSec=sec;showSec(ROUTE[sec].name);if(ROUTE[sec].name==='Площадь Федина')setTimeout(()=>say('fedin',{p:.5}),1500)}
+  {const m=((worldD%LOOP)+LOOP)%LOOP,lp='b'+Math.floor(worldD/LOOP);if(m>140&&m<160&&!sayFlags[lp]){sayFlags[lp]=1;say('bridge',{prio:1})}}
+  if(worldD>2000&&!sayFlags.long){sayFlags.long=1;say('long')}
+  if(speed>=MAXS-.01&&!sayFlags.tired){sayFlags.tired=1;say('tired')}
   spawnZ+=dz;while(spawnZ>-130){spawnZ-=15+speed*.55+Math.random()*5;spawnZ-=spawnRow(spawnZ)||0}
   jumpBuf=Math.max(0,jumpBuf-dt);magnetT=Math.max(0,magnetT-dt);doubleT=Math.max(0,doubleT-dt);bumpCd=Math.max(0,bumpCd-dt);
   superT=Math.max(0,superT-dt);invT=Math.max(0,invT-dt);diana.visible=invT<=0||Math.floor(t*12)%2===0;
@@ -1107,7 +1142,7 @@ function update(dt){
   P.x+=(LANES[P.lane]-P.x)*Math.min(1,dt*19);
   // земля под ногами: плитка или крыша киосков/рампа; в стенку киоска сбоку - отскок, в лоб - падение
   const gr=groundAt(P.x,P.y);
-  if(gr.wall){if(gr.wall.off>.35){if(bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40)}}else if(hit())return}
+  if(gr.wall){if(gr.wall.off>.35){if(bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}}else if(hit())return}
   if(P.ground){if(gr.g>=P.y-.06)P.y=gr.g;else{P.ground=false;P.vy=0}}
   if(!P.ground){P.vy-=G*dt;P.y+=P.vy*dt;if(P.y<=gr.g){const hard=P.vy<-6;P.y=gr.g;P.vy=0;P.ground=true;squash=.16;if(hard){spawnDust();sfx('land')}if(jumpBuf>0)jump()}}
   P.gnd=gr.g;if(P.ground&&P.y>BH-.1)runStat.roof+=dz;
@@ -1124,7 +1159,7 @@ function update(dt){
     const off=Math.abs(P.x-LANES[o.lane]);
     if(o.type==='van'){
       if(off<.62&&P.y<2.5){if(hit())return}
-      if(off<1.25&&P.y<2.5&&bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40)}
+      if(off<1.25&&P.y<2.5&&bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}
     }else if(off<.75){
       if(o.type==='low'&&P.y<.95){if(hit())return}
       if(o.type==='high'&&!(P.slide>0&&P.y<.45)&&P.y<2.3){if(hit())return}
@@ -1133,13 +1168,13 @@ function update(dt){
   // coins
   for(let i=coinsArr.length-1;i>=0;i--){const c=coinsArr[i],p=c.m.position;p.z+=dz;c.m.rotation.y+=dt*4;
     if(magnetT>0&&p.z>-28&&p.z<3){const k=Math.min(1,dt*9);p.x+=(P.x-p.x)*k;p.y+=(P.y+1-p.y)*k;if(p.z>-6)p.z+=(0-p.z)*k}
-    if(Math.abs(p.x-P.x)<.8&&Math.abs(p.z)<.9&&Math.abs(p.y-(P.y+.9))<1.1){pops.push({m:c.m,t:0});coinsArr.splice(i,1);coins++;runStat.coins++;score+=(doubleT>0?20:10)*mult;sfx('coin');continue}
+    if(Math.abs(p.x-P.x)<.8&&Math.abs(p.z)<.9&&Math.abs(p.y-(P.y+.9))<1.1){pops.push({m:c.m,t:0});coinsArr.splice(i,1);coins++;runStat.coins++;if(coins%100===0)say('coins');score+=(doubleT>0?20:10)*mult;sfx('coin');continue}
     if(p.z>10){scene.remove(c.m);coinsArr.splice(i,1)}}
   for(let i=pops.length-1;i>=0;i--){const o=pops[i];o.t+=dt;const k=o.t/.28;o.m.position.y+=dt*5;o.m.rotation.y+=dt*16;o.m.scale.setScalar(k<.35?1+k*1.6:Math.max(0,1.56*(1-k)/.65));if(k>=1){scene.remove(o.m);pops.splice(i,1)}}
   // power-ups
   for(let i=powers.length-1;i>=0;i--){const w=powers[i],p=w.m.position;p.z+=dz;p.y=w.base+Math.sin(t*4+i)*.15;
     if(Math.abs(p.x-P.x)<.9&&Math.abs(p.z)<1&&Math.abs(p.y-(P.y+.9))<1.2){scene.remove(w.m);powers.splice(i,1);
-      if(w.kind==='magnet'){magnetT=9;toast('Магнит!')}else if(w.kind==='sneaker'){superT=10;toast('Супер-прыжок!')}else{doubleT=10;toast('Очки ×2!')}runStat.powers++;sfx('power');continue}
+      if(w.kind==='magnet'){magnetT=9;toast('Магнит!')}else if(w.kind==='sneaker'){superT=10;toast('Супер-прыжок!')}else{doubleT=10;toast('Очки ×2!')}runStat.powers++;sfx('power');say('power',{p:.6});continue}
     if(p.z>10){scene.remove(w.m);powers.splice(i,1)}}
   for(let i=dusts.length-1;i>=0;i--){const d=dusts[i];d.t+=dt;d.s.position.x+=d.vx*dt;d.s.position.z+=dz;d.s.scale.setScalar(.3+d.t*2.2);d.s.material.opacity=Math.max(0,.8-d.t*2);
     if(d.t>.4){scene.remove(d.s);d.s.material.dispose();dusts.splice(i,1)}}
@@ -1212,7 +1247,7 @@ function loop(){
   if(mixer&&state!=='pause'&&state!=='countdown')mixer.update(dt);
   if(musicSrc){const v=state==='play'?.5:(state==='menu'||state==='countdown')?.32:.14;musicBus.gain.setTargetAtTime(v,AC.currentTime,.25)}
   sun.position.set(P.x-7,16,6);sun.target.position.set(P.x,0,-5);
-  renderer.render(scene,camera);
+  sayTick();renderer.render(scene,camera);
 }
 // земля в точке игрока: крыша ряда киосков (BH), рампа (линейно от 0 до BH) или плитка; что выше шага - стена
 function groundAt(x,y){let g=0,wall=null;
@@ -1238,7 +1273,7 @@ if(AS.splash)$('menu').style.background=`linear-gradient(to bottom,rgba(42,20,70
 if(AS.diana_fail){$('ovImg').src=AS.diana_fail.src;$('ovImg').hidden=false}
 if(AS.coin)document.querySelectorAll('.coin-ico').forEach(e=>Object.assign(e.style,{background:`url(${AS.coin.src}) center/contain no-repeat`,boxShadow:'none'}));
 setTimeout(()=>{$('splash').classList.add('out');toMenu();setTimeout(()=>show('splash',false),550)},Math.max(250,1900-performance.now()));
-window.__dr={get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
+window.__dr={say,gameOver,get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
 };
 </script>
 <script>
@@ -1253,6 +1288,8 @@ window.__dr={get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult()
     x.onload=()=>{if(x.status!==200&&x.status!==0)return rej();const el=document.createElement('script');el.text=x.responseText;document.head.appendChild(el);done[i]=f[1];upd();res()};
     x.onerror=rej;x.send()});
   const http=/^https?:$/.test(location.protocol);
-  Promise.all(files.map((f,i)=>http?viaXhr(f,i).catch(()=>viaTag(f,i)):viaTag(f,i))).then(()=>window.__bootGame());
+  Promise.all(files.map((f,i)=>http?viaXhr(f,i).catch(()=>viaTag(f,i)):viaTag(f,i))).then(()=>{window.__bootGame();
+    // озвучка реплик Дианы необязательна: нет файла - остаются только облачка
+    const v=document.createElement('script');v.src='diana-voice.js';v.onerror=()=>v.remove();document.head.appendChild(v)});
 })();
 </script>
