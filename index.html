@@ -244,21 +244,30 @@ addEventListener('resize',resize);resize();
 
 /* ---------- world: набережная Космонавтов, Саратов ---------- */
 const LANES=[-2.2,0,2.2];
-// Маршрут от моста к Бабушкину взвозу (по Википедии и tourister.ru; кафе по номерам домов из 2ГИС, их места примерные).
-// Сумма участков ~1460 м, как у настоящей набережной. at = метры от начала участка. Править только здесь.
+// Маршрут по линии Жени в Яндекс Картах (18.10.2026): 4536 м от Саратовского моста вдоль Волги, места - проекция OSM и Яндекса.
+// Подробности в Downloads\diana-route.md. at = метры от начала участка. Править только здесь.
 const ROUTE=[
-  {name:'Мост Саратов-Энгельс',len:200,items:[{at:60,lm:'bridge'}]},
-  {name:'Речной порт',len:200,items:[{at:90,lm:'port'}]},
-  {name:'Площадь Гагарина',len:220,items:[{at:70,lm:'gagarin'},{at:150,lm:'slovakia'}]},
-  {name:'Речной вокзал',len:200,items:[{at:60,lm:'ushakov'},{at:120,lm:'river'}]},
-  {name:'Площадь Федина',len:300,items:[{at:50,cafe:'Персик'},{at:110,lm:'fedin'},{at:130,lm:'fountain'},{at:190,cafe:'Ember'},{at:250,cafe:'Саранг'}]},
-  {name:'Бабушкин взвоз',len:340,items:[{at:30,cafe:'My Joy'},{at:85,cafe:'Воск'},{at:190,cafe:'Кафетерий №11'},{at:240,cafe:'У клуба'},{at:280,lm:'lovers'},{at:310,lm:'rotunda'}]},
+  {name:'Саратовский мост',len:430,items:[{at:40,lm:'bridge'}]},
+  {name:'Причалы',len:400,items:[{at:20,lm:'sobor'},{at:110,lm:'yadoma'},{at:130,cafe:'Воск'},{at:175,cafe:'The Мост'},{at:220,cafe:'Брудершафт'},{at:320,lm:'sailors'},{at:370,lm:'volna'},{at:392,lm:'heart'}]},
+  {name:'Речной вокзал',len:220,items:[{at:0,lm:'petr'},{at:12,cafe:'My Joy'},{at:25,lm:'river'},{at:90,lm:'slovakia'},{at:180,cafe:'Саранг'}]},
+  {name:'Площадь Гагарина',len:300,items:[{at:30,lm:'gagarin'},{at:150,cafe:'Ember'}]},
+  {name:'Площадь Федина',len:550,items:[{at:66,lm:'gerb'},{at:70,lm:'fedin'},{at:83,cafe:'Coffee Like'},{at:92,lm:'kids'},{at:420,cafe:'Медь'},{at:440,lm:'wfountain'},{at:480,lm:'mural',v:6}]},
+  {name:'Бабушкин взвоз',len:400,items:[{at:70,lm:'lovers'},{at:90,cafe:'Кафетерий №11'},{at:100,lm:'rotunda'}]},
+  {name:'Аллея муралов',len:450,items:[{at:310,lm:'ushakov'}]},
+  {name:'Набережная Космонавтов',len:600,items:[]},
+  {name:'Летний кинотеатр',len:600,items:[{at:400,lm:'flypark'},{at:450,lm:'cinema'},{at:470,cafe:'Волга-море'},{at:520,lm:'glory'}]},
+  {name:'Пляж Покорителей Волги',len:586,items:[{at:50,lm:'fountain'},{at:100,lm:'beach'},{at:105,cafe:'Кофе и шоколад'},{at:350,cafe:'Orero'},{at:507,cafe:'Жираф Вафля'}]},
 ];
 // sign colours: [фон, текст]
-const CAFES={'Персик':['#ff8f6b','#fff7ea'],'Ember':['#2e2140','#ff9a3d'],'Саранг':['#e8475f','#fff7ea'],'My Joy':['#ffc83d','#2a1446'],'Воск':['#b98a52','#fff7ea'],'Кафетерий №11':['#3fe0b0','#2a1446'],'У клуба':['#6b4fa0','#ffc83d']};
-const T3={cafe:5.5,slovakia:7,bridge:9};   // half-frontage the item takes in the building row
+const CAFES={'Ember':['#2e2140','#ff9a3d'],'Саранг':['#e8475f','#fff7ea'],'My Joy':['#ffc83d','#2a1446'],'Воск':['#3b2a1e','#ffc83d'],'Кафетерий №11':['#3fe0b0','#2a1446'],
+  'The Мост':['#1f3a5f','#fff7ea'],'Брудершафт':['#7a1f3d','#fff7ea'],'Coffee Like':['#fff7ea','#2a1446'],'Медь':['#b87333','#fff7ea'],'Волга-море':['#2f7fd1','#fff7ea'],
+  'Кофе и шоколад':['#5a3825','#ffc83d'],'Orero':['#e23a4f','#fff7ea'],'Жираф Вафля':['#ffc83d','#5a3825']};
+const T3={cafe:5.5,slovakia:7,bridge:9,volna:7,flypark:6};   // half-frontage the item takes in the building row
 const ITEMS=[];let LOOP=0;
 ROUTE.forEach(s=>{s.start=LOOP;s.items.forEach(it=>ITEMS.push(Object.assign({off:LOOP+it.at,t3:T3[it.cafe?'cafe':it.lm]||0},it)));LOOP+=s.len});
+// причалы «Саратов» 1-8 у Речного вокзала и три на новом участке; стена муралов 2030-2700 м (мимо Ушакова)
+[610,680,750,820,890,960,1030,1100,3360,3810,4290].forEach((m,i)=>ITEMS.push({off:m,lm:'pier',n:i+1,boat:i%3===1,t3:0}));
+for(let m=2034,v=0;m<=2700;m+=24,v++)if(Math.abs(m-2610)>9)ITEMS.push({off:m,lm:'mural',v:v%6,t3:0});
 function sectionAt(d){const m=((d%LOOP)+LOOP)%LOOP;let i=0;while(i<ROUTE.length-1&&m>=ROUTE[i+1].start)i++;return i}
 function absItems(a,b,fn){for(let k=Math.floor(a/LOOP);k*LOOP<b;k++)for(const it of ITEMS){const p=k*LOOP+it.off;if(p>=a&&p<b)fn(it,p)}}
 function itemNear(r,d,pred){let f=false;absItems(r-d,r+d,it=>{if(pred(it))f=true});return f}
@@ -494,6 +503,79 @@ function makeBridge(){const g=new THREE.Group(),y=11.5;
   for(let x=-280;x<=40;x+=23){g.add(mesh(geo('bl',()=>new THREE.CylinderGeometry(.08,.08,2.4,6)),DARK,x,y+2,5.8));const gl=new THREE.Sprite(glowMat);gl.position.set(x,y+3.3,5.8);gl.scale.setScalar(2.2);g.add(gl)}
   return g}
 
+// ---------- места маршрута 4,5 км: простые модели в стиле игры ----------
+function makeSobor(){const g=new THREE.Group();
+  g.add(mesh(new THREE.BoxGeometry(14,12,18),WHITE,0,6,0));g.add(mesh(new THREE.BoxGeometry(8,6,8),WHITE,0,15,0));g.add(mesh(new THREE.BoxGeometry(5,22,5),WHITE,0,11,12));
+  const dome=(x,y,z,r)=>{g.add(mesh(new THREE.SphereGeometry(r,14,10),0xffc83d,x,y,z));g.add(mesh(new THREE.ConeGeometry(r*.35,r*1.6,10),0xffc83d,x,y+r*1.1,z));g.add(mesh(new THREE.BoxGeometry(.15,1.6,.15),0xffc83d,x,y+r*2.3,z))};
+  dome(0,19.5,0,2.4);dome(-5,13.5,-6,1.5);dome(5,13.5,-6,1.5);dome(-5,13.5,6,1.5);dome(5,13.5,6,1.5);dome(0,23.5,12,1.3);return g}
+function makeSignArt(text,bg,fg,w){const g=new THREE.Group();[-w/2+.3,w/2-.3].forEach(x=>g.add(mesh(geo('sa_p',()=>new THREE.CylinderGeometry(.07,.07,1.6,6)),DARK,x,.8,0)));
+  const sg=board(text,w,bg,fg);sg.position.y=1.6+w*160/512/2;g.add(sg);g.rotation.y=-.25;return g}
+function makePier(boat,n){const g=new THREE.Group();
+  g.add(mesh(new THREE.BoxGeometry(10,.5,7),0x8f8290,-9.5,-.3,0));g.add(mesh(new THREE.BoxGeometry(5,.15,1.6),0xc98a4b,-5.2,.05,0));
+  [-13,-6].forEach(x=>[-2.8,2.8].forEach(z=>g.add(mesh(geo('pr_c',()=>new THREE.CylinderGeometry(.08,.08,2.6,6)),0xfff7ea,x,1.3,z))));
+  g.add(mesh(new THREE.BoxGeometry(8,.25,6.4),0x2f7fd1,-9.5,2.7,0));
+  const sg=board('ПРИЧАЛ '+n,2.6,'#2f7fd1','#fff7ea');sg.position.set(-6.5,3.7,3);sg.rotation.y=.5;g.add(sg);
+  if(boat){g.add(mesh(new THREE.BoxGeometry(4,1.6,16),0xffffff,-17,.2,-2));g.add(mesh(new THREE.BoxGeometry(4.05,.3,16.05),0x2f7fd1,-17,-.45,-2));
+    g.add(mesh(new THREE.BoxGeometry(3.2,1.4,10),0xf4f0ff,-17,1.7,-3));g.add(mesh(new THREE.BoxGeometry(3.25,.4,10.05),0x46508f,-17,1.9,-3));
+    g.add(mesh(new THREE.CylinderGeometry(.45,.5,1.4,10),0xff4f9a,-17,3.1,-6))}
+  return g}
+function makeSailors(){const g=new THREE.Group(),a=new THREE.Group();g.add(mesh(new THREE.BoxGeometry(1.8,1.2,1.8),GRANITE,0,.6,0));a.position.y=1.2;
+  a.add(mesh(new THREE.BoxGeometry(.22,2.6,.22),DARK,0,1.4,0));a.add(mesh(new THREE.BoxGeometry(1.4,.2,.2),DARK,0,2.4,0));a.add(mesh(new THREE.TorusGeometry(.3,.08,8,16),DARK,0,2.95,0));
+  const arc=mesh(new THREE.TorusGeometry(.95,.12,8,20,Math.PI),DARK,0,.95,0);arc.rotation.z=Math.PI;a.add(arc);
+  [-1,1].forEach(sd=>{const t=mesh(new THREE.ConeGeometry(.2,.45,8),DARK,sd*.95,1.05,0);t.rotation.z=sd*.6;a.add(t)});g.add(a);g.rotation.y=-.6;return g}
+function makeNamed(name,bg,fg){const g=makeBuilding(13),h=g.children[0].geometry.parameters.height;const sg=board(name,7,bg,fg);sg.position.set(-1,h+1.6,1);sg.rotation.y=-.35;g.add(sg);return g}
+function makeHeart(){const g=new THREE.Group(),m=M(0xe23a4f),h=new THREE.Group();g.add(mesh(new THREE.CylinderGeometry(.9,1,.4,16),GRANITE,0,.2,0));h.position.y=1.9;
+  [-1,1].forEach(sd=>h.add(mesh(geo('ht_s',()=>new THREE.SphereGeometry(.62,16,12)),m,sd*.45,.3,0)));
+  const c=mesh(geo('ht_c',()=>new THREE.ConeGeometry(.95,1.5,16)),m,0,-.55,0);c.rotation.z=Math.PI;h.add(c);h.scale.z=.45;g.add(h);
+  const sg=board('САРАТОВ - СЕРДЦЕ ВОЛГИ',2.6,'#e23a4f','#fff7ea');sg.position.set(0,.75,.55);g.add(sg);g.rotation.y=-.3;return g}
+// герб Саратова: на голубом щите три серебряные стерляди
+const gerbTex=tex(128,160,(g,w,h)=>{const shield=i=>{g.beginPath();g.moveTo(i,i);g.lineTo(w-i,i);g.lineTo(w-i,h*.6);g.quadraticCurveTo(w-i,h-i,w/2,h-i);g.quadraticCurveTo(i,h-i,i,h*.6);g.closePath();g.fill()};
+  g.fillStyle='#ffc83d';shield(4);g.fillStyle='#2f6fd1';shield(12);g.fillStyle='#e8eef6';
+  for(const [x,y] of [[64,52],[42,96],[86,96]]){g.save();g.translate(x,y);g.beginPath();g.ellipse(-4,0,20,6,0,0,7);g.fill();g.beginPath();g.moveTo(14,0);g.lineTo(26,-8);g.lineTo(26,8);g.fill();g.restore()}});
+function makeGerb(){const g=new THREE.Group();g.add(mesh(new THREE.BoxGeometry(1.6,.8,.6),GRANITE,0,.4,0));
+  g.add(mesh(new THREE.PlaneGeometry(1.6,2),new THREE.MeshLambertMaterial({map:gerbTex,transparent:true,alphaTest:.3,side:THREE.DoubleSide}),0,1.85,0));g.rotation.y=-.3;return g}
+function makeKids(){const g=new THREE.Group(),a=figure(BRONZE),b=figure(BRONZE);g.add(mesh(new THREE.CylinderGeometry(1,1.1,.35,16),GRANITE,0,.17,0));
+  a.scale.setScalar(.62);b.scale.setScalar(.55);a.position.set(-.3,.35,0);b.position.set(.35,.35,.1);b.rotation.y=-.6;g.add(a,b);g.rotation.y=-.4;return g}
+function makeWaterFountain(){const g=new THREE.Group(),jm=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0x6aa8d8,transparent:true,opacity:.65});
+  g.add(mesh(new THREE.CylinderGeometry(6,6,.5,24),0x8f8290,0,-.6,0));g.add(mesh(new THREE.CylinderGeometry(.5,1.4,16,12),jm,0,7.5,0));
+  for(let i=0;i<10;i++){const an=i/10*Math.PI*2,j=mesh(geo('wf_j',()=>new THREE.CylinderGeometry(.18,.5,6,8)),jm,Math.cos(an)*4,2.6,Math.sin(an)*4);j.rotation.z=Math.cos(an)*.25;j.rotation.x=-Math.sin(an)*.25;g.add(j)}
+  return g}
+// муралы: свои рисунки (Волга, стерляди, ракета, цветы, полосы, бегунья) и граффити «Волга - Янцзы»
+const muralMats={};
+function muralMat(v){if(muralMats[v])return muralMats[v];const t=tex(256,128,(g,w,h)=>{
+  const c=(col,x,y,r)=>{g.fillStyle=col;g.beginPath();g.arc(x,y,r,0,7);g.fill()};
+  if(v===0){const gr=g.createLinearGradient(0,0,0,h);gr.addColorStop(0,'#ffb36b');gr.addColorStop(1,'#ff6fa8');g.fillStyle=gr;g.fillRect(0,0,w,h);c('#ffe28a',190,44,26);
+    for(let i=0;i<4;i++){g.fillStyle=['#3fa8e0','#2f7fd1','#3fe0b0','#2a5fb0'][i];g.beginPath();g.moveTo(0,70+i*14);for(let x=0;x<=w;x+=16)g.quadraticCurveTo(x+8,62+i*14,x+16,70+i*14);g.lineTo(w,h);g.lineTo(0,h);g.fill()}
+    g.fillStyle='#fff7ea';g.fillRect(60,58,46,8);g.fillRect(72,48,22,10)}
+  else if(v===1){g.fillStyle='#2f6fd1';g.fillRect(0,0,w,h);g.fillStyle='#e8eef6';for(const [x,y,k] of [[70,40,1],[170,70,1.3],[90,96,.8]]){g.save();g.translate(x,y);g.scale(k,k);g.beginPath();g.ellipse(0,0,40,10,0,0,7);g.fill();g.beginPath();g.moveTo(34,0);g.lineTo(54,-12);g.lineTo(54,12);g.fill();g.restore()}
+    for(let i=0;i<14;i++)c('rgba(255,255,255,.35)',Math.random()*w,Math.random()*h,3)}
+  else if(v===2){g.fillStyle='#16204e';g.fillRect(0,0,w,h);for(let i=0;i<40;i++)c('#fff7ea',Math.random()*w,Math.random()*h,1.5);c('#ff9a5d',210,90,30);c('#3fe0b0',40,30,10);
+    g.save();g.translate(110,70);g.rotate(-.6);g.fillStyle='#fff7ea';g.beginPath();g.ellipse(0,0,14,40,0,0,7);g.fill();g.fillStyle='#e23a4f';g.beginPath();g.moveTo(-14,20);g.lineTo(-26,42);g.lineTo(-8,34);g.fill();g.beginPath();g.moveTo(14,20);g.lineTo(26,42);g.lineTo(8,34);g.fill();
+    g.fillStyle='#ffc83d';g.beginPath();g.moveTo(-8,40);g.lineTo(0,64);g.lineTo(8,40);g.fill();c('#3fa8e0',0,-10,6);g.restore()}
+  else if(v===3){g.fillStyle='#ff8fc8';g.fillRect(0,0,w,h);for(const [x,y,r,col] of [[50,60,30,'#fff7ea'],[140,40,22,'#ffe28a'],[200,85,34,'#fff7ea'],[105,100,18,'#ffe28a']]){for(let k=0;k<8;k++){const an=k/8*Math.PI*2;c(col,x+Math.cos(an)*r*.7,y+Math.sin(an)*r*.7,r*.38)}c('#ffc83d',x,y,r*.35)}}
+  else if(v===4){const cols=['#e23a4f','#ff9a3d','#ffc83d','#3fe0b0','#2f7fd1','#6b4fa0'];for(let i=-6;i<16;i++){g.fillStyle=cols[(i+60)%6];g.beginPath();g.moveTo(i*24,0);g.lineTo(i*24+24,0);g.lineTo(i*24-40,h);g.lineTo(i*24-64,h);g.fill()}}
+  else if(v===5){g.fillStyle='#3fe0b0';g.fillRect(0,0,w,h);g.fillStyle='#2a1446';c('#2a1446',150,36,12);g.save();g.translate(150,40);g.lineWidth=12;g.lineCap='round';g.strokeStyle='#2a1446';
+    g.beginPath();g.moveTo(0,10);g.lineTo(-6,46);g.lineTo(-30,70);g.moveTo(-6,46);g.lineTo(18,62);g.lineTo(26,84);g.moveTo(0,18);g.lineTo(-28,32);g.moveTo(0,18);g.lineTo(26,10);g.stroke();
+    g.lineWidth=7;g.strokeStyle='#ff4f9a';g.beginPath();g.moveTo(-6,-8);g.quadraticCurveTo(-50,-14,-80,6);g.moveTo(-8,-2);g.quadraticCurveTo(-46,2,-74,24);g.stroke();g.restore();c('#ffc83d',220,40,10)}
+  else{g.fillStyle='#e23a4f';g.fillRect(0,0,w,h);g.fillStyle='#ffc83d';g.fillRect(0,86,w,18);g.fillStyle='#fff7ea';g.fillRect(0,104,w,10);g.fillStyle='#2f7fd1';g.fillRect(0,114,w,14);
+    g.font='900 34px '+FONT;g.textAlign='center';g.textBaseline='middle';g.lineWidth=6;g.strokeStyle='#2a1446';g.strokeText('ВОЛГА - ЯНЦЗЫ',w/2,44);g.fillStyle='#fff7ea';g.fillText('ВОЛГА - ЯНЦЗЫ',w/2,44)}});
+  return muralMats[v]=nightMat(new THREE.MeshLambertMaterial({map:t}))}
+function makeMural(v){const g=new THREE.Group(),w=7,h=3.2;g.add(mesh(geo('mu_p',()=>new THREE.PlaneGeometry(w,h)),muralMat(v),0,h/2+.35,0));
+  g.add(mesh(geo('mu_b',()=>new THREE.BoxGeometry(w+.2,h+.2,.15)),0x8f8290,0,h/2+.35,-.09));g.rotation.y=-1.05;return g}
+function makeFlyPark(){const g=new THREE.Group();g.add(mesh(new THREE.BoxGeometry(9,3,12),0x2a1446,0,1.5,0));
+  g.add(mesh(new THREE.CylinderGeometry(2.4,2.4,9,20,1,true),new THREE.MeshLambertMaterial({color:0x9ad9ff,transparent:true,opacity:.45,side:THREE.DoubleSide}),-1,7.5,0));
+  g.add(mesh(new THREE.CylinderGeometry(2.6,2.6,.5,20),0xff4f9a,-1,12.2,0));const sg=board('NOW FLY PARK',6,'#ff4f9a','#fff7ea');sg.position.set(-1,13.6,1);sg.rotation.y=-.35;g.add(sg);return g}
+function makeCinema(){const g=new THREE.Group();[-3.4,3.4].forEach(z=>g.add(mesh(geo('ci_p',()=>new THREE.BoxGeometry(.3,5.4,.3)),DARK,0,2.7,z)));
+  g.add(mesh(new THREE.BoxGeometry(.2,3.4,6.6),0xfff7ea,0,3.6,0));const sg=board('ЛЕТНИЙ КИНОТЕАТР',5,'#2a1446','#ffc83d');sg.position.set(-.1,5.9,0);sg.rotation.y=-Math.PI/2;g.add(sg);
+  for(let r=0;r<3;r++)g.add(mesh(geo('ci_b',()=>new THREE.BoxGeometry(.5,.5,5)),0xc98a4b,-2-r*1.4,.25,0));g.rotation.y=.9;return g}
+function makeGlory(){const g=new THREE.Group();g.add(mesh(new THREE.BoxGeometry(8,1,8),GRANITE,0,.5,0));
+  const o=mesh(new THREE.CylinderGeometry(.9,1.8,26,4),0xd8d2e0,0,14,0);o.rotation.y=Math.PI/4;g.add(o);g.add(mesh(new THREE.OctahedronGeometry(1.1),0xffc83d,0,28,0));return g}
+function makeBeach(){const g=new THREE.Group(),L=110,sand=mesh(new THREE.PlaneGeometry(26,L),0xf2d8a0,-17,-.55,-L/2);sand.rotation.x=-Math.PI/2;sand.receiveShadow=true;g.add(sand);
+  for(let i=0;i<9;i++){const z=-6-i*12,x=-10-rnd(0,12);
+    g.add(mesh(geo('bc_p',()=>new THREE.CylinderGeometry(.06,.06,2.4,6)),0xfff7ea,x,.6,z));g.add(mesh(geo('bc_u',()=>new THREE.ConeGeometry(1.5,.6,12)),umbMat,x,1.9,z));
+    g.add(mesh(geo('bc_l',()=>new THREE.BoxGeometry(.7,.15,1.8)),[0xff4f9a,0x3fe0b0,0xffc83d][i%3],x+1.4,-.35,z))}
+  [-1,1].forEach(z=>g.add(mesh(geo('bc_s',()=>new THREE.CylinderGeometry(.08,.08,2.6,6)),DARK,-8+z*2.2,1.3,-2)));
+  const sg=board('ПЛЯЖ ПОКОРИТЕЛЕЙ ВОЛГИ',5,'#ffc83d','#2a1446');sg.position.set(-8,3,-2);sg.rotation.y=.5;g.add(sg);return g}
 function spawnItem(it,p){
   if(it.cafe){place(makeCafe(it.cafe),16,2,p);place(makePylon(it.cafe),5.1,.31,p-7,true);return}
   switch(it.lm){
@@ -507,6 +589,21 @@ function spawnItem(it,p){
     case'river':place(AS.lm_river_station?riverArt():makeRiver(),0,0,p,false,40);break;
     case'gagarin':place(sp('lm_gagarin',6.8)||makeGagarin(),5.1,.31,p,true);break;
     case'bridge':place(makeBridge(),0,0,p,true,30);break;
+    case'sobor':place(makeSobor(),48,2,p,false,60);break;
+    case'yadoma':place(makeSignArt('Я ДОМА','#ff4f9a','#fff7ea',3),5.1,.31,p,true);break;
+    case'pier':place(makePier(it.boat,it.n),0,0,p,false,30);break;
+    case'sailors':place(makeSailors(),5.1,.31,p,true);break;
+    case'volna':place(makeNamed('ВОЛНА','#2f7fd1','#fff7ea'),16,2,p,false,30);break;
+    case'petr':place(statue(BRONZE,2.4,1.5,true),9,2,p,true);break;
+    case'heart':place(makeHeart(),5.1,.31,p,true);break;
+    case'gerb':place(makeGerb(),5.1,.31,p,true);break;
+    case'kids':place(makeKids(),5.1,.31,p,true);break;
+    case'wfountain':place(makeWaterFountain(),-40,0,p,false,30);break;
+    case'mural':place(makeMural(it.v||0),5.6,.31,p,false);break;
+    case'flypark':place(makeFlyPark(),16,2,p,false,30);break;
+    case'cinema':place(makeCinema(),9,2,p,true);break;
+    case'glory':place(makeGlory(),34,2,p,false,40);break;
+    case'beach':place(makeBeach(),0,0,p,false,120);break;
   }}
 const lantern=()=>{const g=sp('lantern',4)||makeLantern(),gl=new THREE.Sprite(glowMat);gl.position.y=AS.lantern?3.55:3.3;gl.scale.setScalar(1.7);g.add(gl);return g},tree=()=>sp('tree',rnd(4,5.2))||makeTree();
 function slovakiaArt(){const g=sp('lm_slovakia',30);g.position.x=2;const s=board('СЛОВАКИЯ',11,'#ff4f9a','#fff7ea');s.position.set(1,32,0);s.rotation.y=-.3;g.add(s);return g}
@@ -514,8 +611,8 @@ function riverArt(){const g=new THREE.Group(),w=36,h=w*aspect('lm_river_station'
   g.add(mesh(new THREE.BoxGeometry(18,1.8,40),GRANITE,-15,0,0));
   const pl=mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshLambertMaterial({map:aTex('lm_river_station'),transparent:true,alphaTest:.3,side:THREE.DoubleSide}),-20,.9+h/2,0);pl.rotation.y=1;g.add(pl);
   const s=board('РЕЧНОЙ ВОКЗАЛ',9,'#2a1446','#ffc83d');s.position.set(-12,.9+h+1.6,8);s.rotation.y=.45;g.add(s);return g}
-const busyTerrace=it=>it.cafe||['lovers','gagarin','ushakov','fountain'].includes(it.lm);
-const busyBoulevard=it=>it.lm==='fedin'||it.lm==='rotunda';
+const busyTerrace=it=>it.cafe||['lovers','gagarin','ushakov','fountain','yadoma','sailors','heart','gerb','kids','mural'].includes(it.lm);
+const busyBoulevard=it=>['fedin','rotunda','petr','cinema'].includes(it.lm);
 function genFillTo(h){
   for(;genFill<h;genFill+=3){const r=genFill;
     if(r%12===0){if(!itemNear(r,4,busyTerrace))place(lantern(),4.05,.3,r,true);place(lantern(),-3.95,1,r+6,true)}
