@@ -247,7 +247,7 @@ const LANES=[-2.2,0,2.2];
 // Маршрут по линии Жени в Яндекс Картах (18.10.2026): 4536 м от Саратовского моста вдоль Волги, места - проекция OSM и Яндекса.
 // Подробности в Downloads\diana-route.md. at = метры от начала участка. Править только здесь.
 const ROUTE=[
-  {name:'Саратовский мост',len:430,items:[{at:40,lm:'bridge'}]},
+  {name:'Саратовский мост',len:430,items:[{at:150,lm:'bridge'}]},
   {name:'Причалы',len:400,items:[{at:20,lm:'sobor'},{at:110,lm:'yadoma'},{at:130,cafe:'Воск'},{at:175,cafe:'The Мост'},{at:220,cafe:'Брудершафт'},{at:320,lm:'sailors'},{at:370,lm:'volna'},{at:392,lm:'heart'}]},
   {name:'Речной вокзал',len:220,items:[{at:0,lm:'petr'},{at:12,cafe:'My Joy'},{at:25,lm:'river'},{at:90,lm:'slovakia'},{at:180,cafe:'Саранг'}]},
   {name:'Площадь Гагарина',len:300,items:[{at:30,lm:'gagarin'},{at:150,cafe:'Ember'}]},
@@ -355,9 +355,15 @@ const railT=aTex('railing')||railTex,railH=AS.railing?.8:.62;
 wall(railH,-3.95,1+railH/2,new THREE.MeshLambertMaterial({map:rep(railT,AS.railing?LEN*aspect('railing')/railH:LEN/1.6,1),transparent:true,alphaTest:.5,side:THREE.DoubleSide}),railT,1);
 let waterMat=null;strip(AS.sky_volga?226.2:600,AS.sky_volga?-117:-304.2,-.8,waterMat=new THREE.MeshLambertMaterial({map:rep(waterTex,50,LEN/12),color:AS.tex_water?0x8db6d8:0xffffff,emissive:AS.tex_water?0x000000:0x0d3050}),waterTex);
 const farLen=1000;let panoMat=null;
-// панорама: горизонт картинки (~72% сверху) на высоте глаз, чтобы стыковался с 3D-водой; длинная и высокая, края не видны
-if(AS.sky_volga){const t=aTex('sky_volga'),PL=2400,PH=160;t.wrapS=THREE.MirroredRepeatWrapping;t.repeat.set(PL/(PH/aspect('sky_volga')),1);
-  const pano=mesh(new THREE.PlaneGeometry(PL,PH),panoMat=new THREE.MeshBasicMaterial({map:t,fog:false}),-230,5.5+PH*.22,-200);pano.rotation.y=Math.PI/2;scene.add(pano);scrollers.push({t,ax:'x',k:t.repeat.x/PL})}
+// панорама: дуга цилиндра вокруг камеры (слева-сзади -> вперёд -> чуть вправо), горизонт картинки (~72% сверху) на высоте глаз;
+// плоская стена раньше обрывалась впереди, у дуги края нет, правый конец плавно растворяется в небе
+if(AS.sky_volga){const t=aTex('sky_volga'),R=900,PH=600,T0=Math.PI-.55,TL=Math.PI/2+.55+.7;t.wrapS=THREE.MirroredRepeatWrapping;
+  const n=Math.round(R*TL/(PH/aspect('sky_volga')));t.repeat.set(-n,1);
+  panoMat=new THREE.MeshBasicMaterial({map:t,fog:false,side:THREE.BackSide,transparent:true,depthWrite:false});
+  panoMat.onBeforeCompile=s=>{s.vertexShader='varying float vPU;\n'+s.vertexShader.replace('#include <uv_vertex>','#include <uv_vertex>\nvPU=uv.x;');
+    s.fragmentShader='varying float vPU;\n'+s.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\ndiffuseColor.a*=smoothstep(0.,.14,vPU);')};
+  const pano=mesh(new THREE.CylinderGeometry(R,R,PH,72,1,true,T0,TL),panoMat,0,5.4+PH*(.5-.28),7.6);pano.renderOrder=-1;scene.add(pano);
+  scrollers.push({t,ax:'x',k:n/TL/400})}
 else{const bank=mesh(new THREE.BoxGeometry(40,2.4,farLen),new THREE.MeshLambertMaterial({color:0x8fcf8a,fog:false}),-262,.4,-380);scene.add(bank);
 const sky=mesh(new THREE.PlaneGeometry(farLen,18),new THREE.MeshBasicMaterial({map:rep(skylineTex,farLen/70,1),transparent:true,alphaTest:.3,fog:false}),-243,10.4,-380);
 sky.rotation.y=Math.PI/2;scene.add(sky);scrollers.push({t:skylineTex,ax:'x',k:skylineTex.repeat.x/farLen})}
@@ -495,7 +501,24 @@ function makePort(){const g=new THREE.Group();
   g.add(mesh(new THREE.BoxGeometry(5.6,2,34),0xf4f0ff,-24,2.7,-6));g.add(mesh(new THREE.BoxGeometry(4.4,1.6,22),0xf4f0ff,-24,4.5,-8));
   g.add(mesh(new THREE.BoxGeometry(5.65,.6,34.05),0x46508f,-24,2.9,-6));
   g.add(mesh(new THREE.CylinderGeometry(.8,.9,2.2,12),0xff4f9a,-24,6.4,-12));return g}
-function makeBridge(){const g=new THREE.Group(),y=11.5;
+// мост Саратов-Энгельс: картинка вида сбоку (lm_bridge) повторяется над Волгой, над набережной и городом - настил коробкой,
+// под ним пробегаем. Без тумана, как панорама, чтобы мост был виден издалека
+function makeBridge(){if(!AS.lm_bridge)return makeBridgeBoxes();
+  const g=new THREE.Group(),W=150,H=W*aspect('lm_bridge'),N=5,y0=-.8,top=y0+H*.75,bot=y0+H*.69,dz=6,BC=0xe2aa55;
+  const t=aTex('lm_bridge');t.wrapS=THREE.RepeatWrapping;t.repeat.set(N,1);
+  const pl=mesh(new THREE.PlaneGeometry(W*N,H),new THREE.MeshLambertMaterial({map:t,transparent:true,alphaTest:.3,fog:false,side:THREE.DoubleSide}),-4-W*N/2,y0+H/2,dz);
+  pl.castShadow=false;g.add(pl);
+  const deckM=new THREE.MeshLambertMaterial({color:BC,fog:false}),railM=new THREE.MeshLambertMaterial({color:0x8a8f9c,fog:false});
+  g.add(mesh(new THREE.BoxGeometry(W*N,top-bot,2*dz-.4),deckM,-4-W*N/2,(top+bot)/2,0));
+  // над сушей: настил, перила, опора за рядом домов
+  const LX=80;g.add(mesh(new THREE.BoxGeometry(LX,top-bot,2*dz),deckM,-4+LX/2,(top+bot)/2,0));
+  g.add(mesh(new THREE.BoxGeometry(LX,.35,2*dz+.6),new THREE.MeshLambertMaterial({color:0xb07a35,fog:false}),-4+LX/2,bot,0));
+  [-dz,dz].forEach(z=>g.add(mesh(new THREE.BoxGeometry(LX,1,.15),railM,-4+LX/2,top+.5,z)));
+  g.add(mesh(new THREE.BoxGeometry(5,bot-2,7),new THREE.MeshLambertMaterial({color:0xc9a77a,fog:false}),24,2+(bot-2)/2,0));
+  // фонари на настиле светятся вечером и ночью
+  for(let x=-4-W*N+12;x<=-4+LX;x+=W/6){const gl=new THREE.Sprite(glowMat);gl.position.set(x,top+H*.2,dz);gl.scale.setScalar(3);g.add(gl)}
+  return g}
+function makeBridgeBoxes(){const g=new THREE.Group(),y=11.5;
   g.add(mesh(new THREE.BoxGeometry(360,1.6,12),0xe2dced,-140,y,0));
   g.add(mesh(new THREE.BoxGeometry(360,.25,12.4),0x6b4fa0,-140,y-.9,0));
   [-6.1,6.1].forEach(z=>g.add(mesh(new THREE.BoxGeometry(360,.9,.2),0x6b4fa0,-140,y+1.2,z)));
