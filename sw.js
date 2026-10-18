@@ -1,6 +1,6 @@
 // Diana Surfers: offline cache. Bump the version after every deploy so phones pick up the new files.
-const C = 'diana-v14';
-const CORE = ['./', 'index.html', 'diana-assets.js', 'diana-model.js', 'diana-music.js', 'vendor/three.min.js', 'vendor/GLTFLoader.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
+const C = 'diana-v15';
+const CORE = ['./', 'index.html', 'diana-assets.js', 'diana-model.js', 'diana-music.js', 'diana-voice.js', 'vendor/three.min.js', 'vendor/GLTFLoader.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(C).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
