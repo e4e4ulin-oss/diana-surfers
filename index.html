@@ -121,6 +121,14 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
 .btn-share{font-weight:900;font-size:17px;color:var(--plum);background:var(--gold);padding:12px 22px;border-radius:999px;box-shadow:0 5px 0 #c98a00;display:flex;align-items:center;gap:8px}
 .btn-share:active{transform:translateY(4px);box-shadow:0 1px 0 #c98a00}
 .btn-share svg{width:18px;height:18px}
+/* паспорт набережной: значки мест маршрута */
+.stamps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;width:100%;max-height:44vh;overflow:auto}
+.stamp{display:flex;align-items:center;gap:7px;min-width:0;background:#fff;border-radius:12px;padding:6px 8px;font-weight:800;font-size:12px;line-height:1.15;text-align:left;color:rgba(42,20,70,.4);overflow-wrap:anywhere}
+.stamp i{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-family:var(--display);font-size:13px;background:rgba(42,20,70,.08);color:rgba(42,20,70,.35);border:2px dashed rgba(42,20,70,.2)}
+.stamp.on{color:var(--plum)}
+.stamp.on i{background:var(--gold);color:var(--plum);border:2px solid var(--pink);transform:rotate(-8deg)}
+.postcard{width:100%;border-radius:14px;overflow:hidden;position:relative;aspect-ratio:2.6;background:var(--pink) center 30%/cover;flex:none}
+.postcard span{position:absolute;left:10px;bottom:8px;font-family:var(--display);font-weight:900;color:#fff;font-size:18px;text-shadow:2px 2px 0 var(--plum)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 
@@ -138,6 +146,7 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
   <div class="menu-bottom">
     <div class="best">Рекорд: <b id="bestTxt">0</b></div>
     <div class="menu-row"><button id="misBtn" class="chip">Задания <b id="multTxt">×1</b></button><button id="shopBtn" class="chip">Гардероб <i class="coin-ico"></i><span id="walletTxt">0</span></button></div>
+    <div class="menu-row"><button id="passBtn" class="chip">Паспорт набережной <b id="passTxt">0/10</b></button></div>
     <button id="playBtn" class="btn-play">Бежать!</button>
     <div class="hint">Свайп влево и вправо: сменить дорожку. Вверх: прыжок. Вниз: подкат. На компьютере стрелки.</div>
   </div>
@@ -174,6 +183,7 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
     <div class="stat"><span>Очки</span><b id="ovScore">0</b></div>
     <div class="stat gold"><span>Монеты</span><b id="ovCoins">0</b></div>
     <div class="stat"><span>Рекорд</span><b id="ovBest">0</b></div>
+    <div class="stat"><span>Места за забег</span><b id="ovPlaces">0/10</b></div>
     <div class="newbest" id="ovNew" hidden>Новый рекорд!</div>
     <button id="shareBtn" class="btn-share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13"/></svg><span id="shareTxt">Похвастаться</span></button>
     <button id="againBtn" class="btn-play">Ещё раз</button>
@@ -202,6 +212,16 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
   </div>
 </div>
 
+<div id="passport" class="screen dim" hidden>
+  <div class="card">
+    <h2>Паспорт набережной</h2>
+    <div class="stamps" id="stampList"></div>
+    <div class="postcard" id="postcard" hidden><span>Привет из Саратова!</span></div>
+    <div class="cost" id="passNote">Пробеги всю набережную за один забег: открытка и 500 монет</div>
+    <button class="btn-ghost" data-close="passport">Закрыть</button>
+  </div>
+</div>
+
 <div id="shop" class="screen dim" hidden>
   <div class="card">
     <h2>Гардероб</h2>
@@ -222,7 +242,7 @@ const rnd=(a,b)=>a+Math.random()*(b-a), ri=n=>Math.floor(Math.random()*n);
 const TG=(window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData)?Telegram.WebApp:null;
 const TG_CLOUD=!!(TG&&TG.isVersionAtLeast&&TG.isVersionAtLeast('6.9')&&TG.CloudStorage);
 // прогресс дублируется в облако Telegram, чтобы не пропал при очистке телефона
-const SYNC=['dianaRunBest','dr_wallet','dr_mult','dr_missions','dr_owned','dr_outfit','dr_tut'];
+const SYNC=['dianaRunBest','dr_wallet','dr_mult','dr_missions','dr_owned','dr_outfit','dr_tut','dr_pass','dr_pass_full'];
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:v}catch(e){return d}},
   set(k,v){try{localStorage.setItem(k,v)}catch(e){}if(TG_CLOUD&&SYNC.includes(k))try{TG.CloudStorage.setItem(k,String(v))}catch(e){}}};
 
@@ -990,8 +1010,20 @@ function wear(id){outfit=id;store.set('dr_outfit',id);applyOutfit();renderShop()
 function reloadSave(){best=+store.get('dianaRunBest','0')||0;wallet=+store.get('dr_wallet','0')||0;mult=+store.get('dr_mult','1')||1;
   try{const m=JSON.parse(store.get('dr_missions','null'));if(Array.isArray(m)&&m.length===3&&m.every(x=>MT[x.k]))missions=m}catch(e){}
   try{owned=JSON.parse(store.get('dr_owned','["classic"]'))}catch(e){}outfit=store.get('dr_outfit','classic');tut=store.get('dr_tut','0')!=='1';
-  applyOutfit();if(state==='menu')refreshMenu()}
-function refreshMenu(){$('bestTxt').textContent=best;$('walletTxt').textContent=wallet;renderMissions()}
+  loadPass();applyOutfit();if(state==='menu')refreshMenu()}
+function refreshMenu(){$('bestTxt').textContent=best;$('walletTxt').textContent=wallet;renderMissions();$('passTxt').textContent=pass.length+'/'+ROUTE.length}
+
+/* ---------- паспорт набережной: значок за каждое место маршрута, все за один забег - открытка и 500 монет ---------- */
+const PASS_BONUS=500;let pass=[],passFull=0,runVisited=new Set(),runFull=false;
+function loadPass(){try{const a=JSON.parse(store.get('dr_pass','[]'));pass=Array.isArray(a)?a.filter(i=>ROUTE[i]):[]}catch(e){pass=[]}passFull=+store.get('dr_pass_full','0')||0}
+loadPass();
+function visitSection(i){runVisited.add(i);
+  if(!pass.includes(i)){pass.push(i);store.set('dr_pass',JSON.stringify(pass));setTimeout(()=>{if(state==='play')toast('Новый значок!')},900)}
+  if(!runFull&&runVisited.size===ROUTE.length){runFull=true;passFull++;store.set('dr_pass_full',String(passFull));wallet+=PASS_BONUS;store.set('dr_wallet',String(wallet));
+    setTimeout(()=>{if(state==='play'){toast('Вся набережная! +'+PASS_BONUS);sfx('power');say('record',{prio:5})}},1500)}}
+function renderPass(){$('stampList').innerHTML=ROUTE.map((r,i)=>`<div class="stamp${pass.includes(i)?' on':''}"><i>${i+1}</i><span>${r.name}</span></div>`).join('');
+  const pc=$('postcard');pc.hidden=passFull<1;if(AS.splash)pc.style.backgroundImage=`url(${AS.splash.src})`;
+  $('passNote').textContent=passFull?`Открыток: ${passFull}. Пробеги набережную ещё раз - ещё ${PASS_BONUS} монет`:`Пробеги всю набережную за один забег: открытка и ${PASS_BONUS} монет`}
 
 /* ---------- обучение: первые три препятствия, время замедляется до нужного свайпа ---------- */
 const TUT={jump:['↑','Смахни вверх: прыжок'],slide:['↓','Смахни вниз: подкат'],lane:['← →','Смахни вбок: другая дорожка']};
@@ -1025,6 +1057,7 @@ const LINES={hello:['Приветик!'],start:['Так, сейчас надо �
 const voiceName=(k,i)=>i?k+(i+1):k;
 const sayEl=$('say'),voiceBufs={};let sayT=0,sayUntil=0,sayPrio=0,lastLine='',sayFlags={};
 function say(k,o={}){const now=performance.now(),pr=o.prio||0;
+  if(state==='menu'&&document.querySelector('.screen.dim:not([hidden])'))return;
   if(now<sayUntil&&pr<=sayPrio)return;if(!pr&&now-sayT<(o.gap||6000))return;if(o.p!=null&&Math.random()>o.p)return;
   const v=LINES[k];let i=Math.floor(Math.random()*v.length);if(v.length>1&&v[i]===lastLine)i=(i+1)%v.length;lastLine=v[i];
   sayEl.textContent=v[i];sayEl.classList.add('show');const dur=Math.min(4200,1400+v[i].length*45);sayT=now;sayUntil=now+dur;sayPrio=pr;
@@ -1052,7 +1085,7 @@ function startGame(){
   ensureAudio();clearWorld();resetWorld();curSec=-1;poseReset();
   Object.assign(P,{lane:1,prev:1,x:0,y:0,vy:0,ground:true,slide:0,gnd:0});
   speed=START;score=0;coins=0;jumpBuf=0;magnetT=0;doubleT=0;spawnZ=-20;rows=0;shake=0;bumpCd=0;mStep=0;mNext=0;
-  contUsed=0;invT=0;superT=0;slowMo=1;tutNeed=null;tutStep=0;runStat={coins:0,dist:0,jumps:0,slides:0,roof:0,powers:0};
+  contUsed=0;invT=0;superT=0;slowMo=1;tutNeed=null;tutStep=0;runStat={coins:0,dist:0,jumps:0,slides:0,roof:0,powers:0};runVisited=new Set();runFull=false;
   diana.rotation.y=0;diana.visible=true;state='play';$('mmTag').textContent='×'+mult;$('mmTag').hidden=mult<2;
   show('menu',false);show('over',false);show('pause',false);show('chance',false);show('missions',false);show('shop',false);show('tut',false);show('hud',true);show('sndBtn',false);
   toast('Беги!');sfx('go');sayHide();sayFlags={};setTimeout(()=>{if(state==='play')say('start',{prio:1})},1100);
@@ -1076,7 +1109,7 @@ function doContinue(cost){const fromRun=Math.min(coins,cost);coins-=fromRun;wall
   state='countdown';cdT=2;cdShown=0;clock.getDelta();say('revive',{prio:4})}
 function finishRun(){const s=Math.floor(score),isNew=s>best;if(isNew){best=s;store.set('dianaRunBest',String(best))}
   wallet+=coins;store.set('dr_wallet',String(wallet));show('chance',false);
-  $('ovScore').textContent=s;$('ovCoins').textContent=coins;$('ovBest').textContent=best;show('ovNew',isNew);show('over',true);state='over';if(isNew&&s>0)setTimeout(()=>say('record',{prio:5}),500)}
+  $('ovScore').textContent=s;$('ovCoins').textContent=coins;$('ovBest').textContent=best;$('ovPlaces').textContent=runVisited.size+'/'+ROUTE.length;show('ovNew',isNew);show('over',true);state='over';if(isNew&&s>0)setTimeout(()=>say('record',{prio:5}),500)}
 
 /* ---------- input ---------- */
 function lane(d){if(state!=='play')return;const n=Math.max(0,Math.min(2,P.lane+d));if(n!==P.lane){P.prev=P.lane;P.lane=n;sfx('lane');tutAct('lane')}}
@@ -1109,8 +1142,9 @@ $('shareBtn').addEventListener('click',async()=>{const text=`Мой резуль
   if(TG&&TG.openTelegramLink){TG.openTelegramLink('https://t.me/share/url?url='+encodeURIComponent(GAME_LINK)+'&text='+encodeURIComponent(text));return}
   if(navigator.share){try{await navigator.share({title:'Diana Surfers',text,url:GAME_LINK})}catch(e){}return}
   try{await navigator.clipboard.writeText(text+' '+GAME_LINK);$('shareTxt').textContent='Скопировано!';setTimeout(()=>$('shareTxt').textContent='Похвастаться',2000)}catch(e){}});
-$('misBtn').addEventListener('click',()=>{renderMissions();show('missions',true)});
-$('shopBtn').addEventListener('click',()=>{renderShop();show('shop',true)});
+$('misBtn').addEventListener('click',()=>{sayHide();renderMissions();show('missions',true)});
+$('passBtn').addEventListener('click',()=>{sayHide();renderPass();show('passport',true)});
+$('shopBtn').addEventListener('click',()=>{sayHide();renderShop();show('shop',true)});
 document.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.close,false)));
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&(state==='play'||state==='countdown')){state='pause';show('pause',true)}});
 
@@ -1127,7 +1161,7 @@ function update(dt){
   speed=Math.min(MAXS,speed+dt*.1);
   const dz=speed*dt;score+=dz*.5*mult*(doubleT>0?2:1);
   moveWorld(dz);applyTime(worldD);
-  const sec=sectionAt(worldD);if(sec!==curSec){curSec=sec;showSec(ROUTE[sec].name);if(ROUTE[sec].name==='Площадь Федина')setTimeout(()=>say('fedin',{p:.5}),1500)}
+  const sec=sectionAt(worldD);if(sec!==curSec){curSec=sec;showSec(ROUTE[sec].name);visitSection(sec);if(ROUTE[sec].name==='Площадь Федина')setTimeout(()=>say('fedin',{p:.5}),1500)}
   {const m=((worldD%LOOP)+LOOP)%LOOP,lp='b'+Math.floor(worldD/LOOP);if(m>140&&m<160&&!sayFlags[lp]){sayFlags[lp]=1;say('bridge',{prio:1})}}
   if(worldD>2000&&!sayFlags.long){sayFlags.long=1;say('long')}
   if(speed>=MAXS-.01&&!sayFlags.tired){sayFlags.tired=1;say('tired')}
