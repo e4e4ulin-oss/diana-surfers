@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#2a1446">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
-<script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+<script async id="tgjs" src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;900&family=Nunito:wght@800;900&display=swap">
 <style>
@@ -1302,6 +1302,9 @@ window.__dr={say,gameOver,get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state
   window.__musicPending=true;
   // three.js и Telegram подключены с defer, чтобы не держать заставку: ждём их вместе с картинками
   const domReady=new Promise(r=>document.readyState==='loading'?document.addEventListener('DOMContentLoaded',r):r());
-  Promise.all([domReady,...files.map((f,i)=>http?viaXhr(f,i).catch(()=>viaTag(f,i)):viaTag(f,i))]).then(()=>{window.__bootGame();loadLate(0)});
+  // скрипт Telegram нужен только внутри Telegram (там он приходит быстро); в браузере telegram.org бывает медленным - ждём не больше секунды
+  const inTg=/tgWebApp/.test(location.hash+location.search);
+  const tgReady=new Promise(r=>{if(window.Telegram)return r();const el=document.getElementById('tgjs');if(!el)return r();el.addEventListener('load',r);el.addEventListener('error',r);setTimeout(r,inTg?8000:1000)});
+  Promise.all([domReady,tgReady,...files.map((f,i)=>http?viaXhr(f,i).catch(()=>viaTag(f,i)):viaTag(f,i))]).then(()=>{window.__bootGame();loadLate(0)});
 })();
 </script>
