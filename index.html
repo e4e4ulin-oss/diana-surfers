@@ -287,7 +287,7 @@ const ROUTE=[
 const CAFES={'Ember':['#2e2140','#ff9a3d'],'Саранг':['#e8475f','#fff7ea'],'My Joy':['#ffc83d','#2a1446'],'Воск':['#3b2a1e','#ffc83d'],'Кафетерий №11':['#3fe0b0','#2a1446'],
   'The Мост':['#1f3a5f','#fff7ea'],'Брудершафт':['#7a1f3d','#fff7ea'],'Coffee Like':['#fff7ea','#2a1446'],'Медь':['#b87333','#fff7ea'],'Волга-море':['#2f7fd1','#fff7ea'],
   'Кофе и шоколад':['#5a3825','#ffc83d'],'Orero':['#e23a4f','#fff7ea'],'Жираф Вафля':['#ffc83d','#5a3825']};
-const T3={cafe:5.5,slovakia:7,bridge:9,volna:7,flypark:6};   // half-frontage the item takes in the building row
+const T3={cafe:5.5,slovakia:7,bridge:9,volna:7,flypark:6,fedin:3.5,rotunda:5.5,petr:2.2,cinema:6};   // half-frontage the item takes in the building row
 const ITEMS=[];let LOOP=0;
 ROUTE.forEach(s=>{s.start=LOOP;s.items.forEach(it=>ITEMS.push(Object.assign({off:LOOP+it.at,t3:T3[it.cafe?'cafe':it.lm]||0},it)));LOOP+=s.len});
 // причалы «Саратов» 1-8 у Речного вокзала и три на новом участке; стена муралов 2030-2700 м (мимо Ушакова)
@@ -296,6 +296,10 @@ for(let m=2034,v=0;m<=2700;m+=24,v++)if(Math.abs(m-2610)>9)ITEMS.push({off:m,lm:
 function sectionAt(d){const m=((d%LOOP)+LOOP)%LOOP;let i=0;while(i<ROUTE.length-1&&m>=ROUTE[i+1].start)i++;return i}
 function absItems(a,b,fn){for(let k=Math.floor(a/LOOP);k*LOOP<b;k++)for(const it of ITEMS){const p=k*LOOP+it.off;if(p>=a&&p<b)fn(it,p)}}
 function itemNear(r,d,pred){let f=false;absItems(r-d,r+d,it=>{if(pred(it))f=true});return f}
+const STAIRS=[];for(let m=330;m<LOOP-120;m+=420){let s=m-m%3;for(let i=0;i<14&&ITEMS.some(it=>Math.abs(it.off-s)<11);i++)s+=6;STAIRS.push(s)}
+const loopM=r=>((r%LOOP)+LOOP)%LOOP,stairAt=r=>STAIRS.includes(loopM(r)),stairNearR=r=>STAIRS.some(s=>Math.abs(s-loopM(r))<7);
+// два яруса: нижняя набережная у воды и верхняя аллея; дорожки яруса = его x + LANES
+const TIERS=[{x:0,y:0},{x:10.7,y:2}],laneX=(t,l)=>TIERS[t].x+LANES[l];let camTX=0,camTY=0,climb=null;
 
 const GEO={};
 function geo(k,f){if(!GEO[k]){GEO[k]=f();GEO[k].userData.shared=true}return GEO[k]}
@@ -370,8 +374,10 @@ scene.add(mesh(new THREE.BoxGeometry(2.4,.3,LEN),GRANITE,5.1,.15,ZC));
 strip(2.4,5.1,.305,new THREE.MeshLambertMaterial({map:rep(flowerTex,1,LEN/2.4)}),flowerTex);
 wall(1.7,6.3,1.15,new THREE.MeshLambertMaterial({map:rep(graniteTex,LEN/3.4,1)}),graniteTex,-1);
 scene.add(mesh(new THREE.BoxGeometry(.3,.14,LEN),0xd6cad0,6.35,2.0,ZC));
-strip(6,9.3,2.0,new THREE.MeshLambertMaterial({map:rep(walkTex,3,LEN/2)}),walkTex);
-strip(90,57,2.0,M(0xcfc3d8));
+strip(9.7,11.15,2.0,new THREE.MeshLambertMaterial({map:rep(walkTex,5,LEN/2)}),walkTex);
+// ограда верхней аллеи над подпорной стеной
+[2.45,2.95].forEach(y=>scene.add(mesh(new THREE.BoxGeometry(.07,.07,LEN),0x2a1446,6.45,y,ZC)));
+strip(90,61,2.0,M(0xcfc3d8));
 // left: parapet with cast-iron railing, the Volga, the far bank with Engels
 // парапет заходит на край плитки, иначе между ними просвечивает вода
 scene.add(mesh(new THREE.BoxGeometry(.6,.9,LEN),GRANITE,-3.88,.45,ZC));
@@ -625,15 +631,15 @@ function makeBeach(){const g=new THREE.Group(),L=110,sand=mesh(new THREE.PlaneGe
   [-1,1].forEach(z=>g.add(mesh(geo('bc_s',()=>new THREE.CylinderGeometry(.08,.08,2.6,6)),DARK,-8+z*2.2,1.3,-2)));
   const sg=board('ПЛЯЖ ПОКОРИТЕЛЕЙ ВОЛГИ',5,'#ffc83d','#2a1446');sg.position.set(-8,3,-2);sg.rotation.y=.5;g.add(sg);return g}
 function spawnItem(it,p){
-  if(it.cafe){place(makeCafe(it.cafe),16,2,p);place(makePylon(it.cafe),5.1,.31,p-7,true);return}
+  if(it.cafe){place(makeCafe(it.cafe),20,2,p);place(makePylon(it.cafe),5.1,.31,p-7,true);return}
   switch(it.lm){
-    case'fedin':place(sp('lm_fedin',5.4)||makeFedin(),8.6,2,p,true);break;
-    case'rotunda':place(sp('lm_rotunda',8.5)||makeRotunda(),9,2,p,true,30);break;
+    case'fedin':place(sp('lm_fedin',5.4)||makeFedin(),17.2,2,p,true);break;
+    case'rotunda':place(sp('lm_rotunda',8.5)||makeRotunda(),18.6,2,p,true,30);break;
     case'lovers':place(sp('lm_lovers',6.2)||makeLovers(),5.1,.31,p,true);break;
     case'port':place(makePort(),0,0,p,false,50);break;
     case'ushakov':place(makeUshakov(),5.1,.31,p,true);break;
     case'fountain':place(makeFountain(),5.1,.31,p,true);break;
-    case'slovakia':place(AS.lm_slovakia?slovakiaArt():makeSlovakia(),18,2,p,false,30);break;
+    case'slovakia':place(AS.lm_slovakia?slovakiaArt():makeSlovakia(),22,2,p,false,30);break;
     case'river':place(AS.lm_river_station?riverArt():makeRiver(),0,0,p,false,40);break;
     case'gagarin':place(sp('lm_gagarin',6.8)||makeGagarin(),5.1,.31,p,true);break;
     case'bridge':place(makeBridge(),0,0,p,true,30);break;
@@ -641,20 +647,34 @@ function spawnItem(it,p){
     case'yadoma':place(makeSignArt('Я ДОМА','#ff4f9a','#fff7ea',3),5.1,.31,p,true);break;
     case'pier':place(makePier(it.boat,it.n),0,0,p,false,30);break;
     case'sailors':place(makeSailors(),5.1,.31,p,true);break;
-    case'volna':place(makeNamed('ВОЛНА','#2f7fd1','#fff7ea'),16,2,p,false,30);break;
-    case'petr':place(statue(BRONZE,2.4,1.5,true),9,2,p,true);break;
+    case'volna':place(makeNamed('ВОЛНА','#2f7fd1','#fff7ea'),20,2,p,false,30);break;
+    case'petr':place(statue(BRONZE,2.4,1.5,true),16.6,2,p,true);break;
     case'heart':place(makeHeart(),5.1,.31,p,true);break;
     case'gerb':place(makeGerb(),5.1,.31,p,true);break;
     case'kids':place(makeKids(),5.1,.31,p,true);break;
     case'wfountain':place(makeWaterFountain(),-40,0,p,false,30);break;
     case'mural':place(makeMural(it.v||0),5.6,.31,p,false);break;
-    case'flypark':place(makeFlyPark(),16,2,p,false,30);break;
-    case'cinema':place(makeCinema(),9,2,p,true);break;
+    case'flypark':place(makeFlyPark(),20,2,p,false,30);break;
+    case'cinema':place(makeCinema(),18.6,2,p,true);break;
     case'glory':place(makeGlory(),34,2,p,false,40);break;
     case'beach':place(makeBeach(),0,0,p,false,120);break;
   }}
 const lantern=()=>{const g=sp('lantern',4)||makeLantern(),gl=new THREE.Sprite(glowMat);gl.position.y=AS.lantern?3.55:3.3;gl.scale.setScalar(1.7);g.add(gl);return g},tree=()=>sp('tree',rnd(4,5.2))||makeTree();
 function slovakiaArt(){const g=sp('lm_slovakia',30);g.position.x=2;const s=board('СЛОВАКИЯ',11,'#ff4f9a','#fff7ea');s.position.set(1,32,0);s.rotation.y=-.3;g.add(s);return g}
+function makeStairs(){const g=new THREE.Group(),n=8;
+  for(let i=0;i<n;i++){const h=(i+1)*2/n;g.add(mesh(geo('stp'+i,()=>new THREE.BoxGeometry(.3,h,6)),0xddd2da,3.95+i*.3,h/2,0))}
+  [-3.06,3.06].forEach(z=>g.add(mesh(geo('stw',()=>new THREE.BoxGeometry(2.4,.12,.1)),DARK,5.15,1.25,z)));
+  const up=board('НАВЕРХ ↗',2.2,'#3fe0b0','#2a1446');up.position.set(3.35,2.55,4.4);up.rotation.y=-.35;
+  const dn=board('↙ ВНИЗ',2.2,'#ff4f9a','#fff7ea');dn.position.set(7.35,4.55,4.4);dn.rotation.y=.35;
+  g.add(up,dn,mesh(geo('stpl',()=>new THREE.CylinderGeometry(.05,.05,2.2,6)),DARK,3.35,1.1,4.4),mesh(geo('stpl',()=>new THREE.CylinderGeometry(.05,.05,2.2,6)),DARK,7.35,3.1,4.4));return g}
+const WSHIRT=[0xff4f9a,0x3fe0b0,0xffc83d,0x5ab8ff,0xa46bff,0xff8a4f,0xffffff],WSKIN=[0xf2c9a8,0xe0b08c,0xc98f6a],WHAIR=[0x2a1a12,0x6b4226,0xd9b26a,0x1b1b1b];
+// прохожий: на аллее гуляет навстречу (препятствие), у домов и у ограды просто стоит
+function makeWalker(){const g=new THREE.Group(),sh=WSHIRT[ri(WSHIRT.length)],pants=[0x2a1446,0x3b4a6b,0x5a4a3a][ri(3)];
+  [-.12,.12].forEach(x=>g.add(mesh(geo('wk_l',()=>new THREE.BoxGeometry(.14,.82,.16)),pants,x,.41,0)));
+  g.add(mesh(geo('wk_b',()=>new THREE.BoxGeometry(.46,.62,.26)),sh,0,1.13,0));
+  [-.3,.3].forEach(x=>g.add(mesh(geo('wk_a',()=>new THREE.BoxGeometry(.11,.58,.13)),sh,x,1.12,0)));
+  g.add(mesh(geo('wk_h',()=>new THREE.SphereGeometry(.15,10,8)),WSKIN[ri(3)],0,1.6,0));
+  const hr=mesh(geo('wk_hr',()=>new THREE.SphereGeometry(.16,10,8,0,Math.PI*2,0,Math.PI/2)),WHAIR[ri(4)],0,1.63,.01);g.add(hr);return g}
 function riverArt(){const g=new THREE.Group(),w=36,h=w*aspect('lm_river_station');
   g.add(mesh(new THREE.BoxGeometry(18,1.8,40),GRANITE,-15,0,0));
   const pl=mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshLambertMaterial({map:aTex('lm_river_station'),transparent:true,alphaTest:.3,side:THREE.DoubleSide}),-20,.9+h/2,0);pl.rotation.y=1;g.add(pl);
@@ -663,18 +683,20 @@ const busyTerrace=it=>it.cafe||['lovers','gagarin','ushakov','fountain','yadoma'
 const busyBoulevard=it=>['fedin','rotunda','petr','cinema'].includes(it.lm);
 function genFillTo(h){
   for(;genFill<h;genFill+=3){const r=genFill;
-    if(r%12===0){if(!itemNear(r,4,busyTerrace))place(lantern(),4.05,.3,r,true);place(lantern(),-3.95,1,r+6,true)}
-    if(r%24===6&&AS.vase&&!itemNear(r,5,busyTerrace))place(sp('vase',1.5),5.1,.31,r);
-    if(r%9===0&&!itemNear(r,7,busyBoulevard))place(tree(),7.4+rnd(-.3,.3),2,r,true);
-    if(r%15===6)place(tree(),11+rnd(-.3,.3),2,r,false);
-    if(r%24===12&&!itemNear(r,6,busyBoulevard))place(makeBench(),6.9,2,r,true);
+    const stNear=stairNearR(r);if(stairAt(r))place(makeStairs(),0,0,r,true,20);
+    if(r%12===0){if(!itemNear(r,4,busyTerrace)&&!stNear)place(lantern(),4.05,.3,r,true);place(lantern(),-3.95,1,r+6,true);place(lantern(),6.75,2,r+6,true)}
+    if(r%24===6&&AS.vase&&!itemNear(r,5,busyTerrace)&&!stNear)place(sp('vase',1.5),5.1,.31,r);
+    if(r%9===0&&!itemNear(r,7,busyBoulevard))place(tree(),15.2+rnd(-.2,.2),2,r,true);
+    if(r%24===12&&!itemNear(r,6,busyBoulevard)){const b=makeBench();b.rotation.y=-Math.PI/2;place(b,14.7,2,r,true)}
+    if(r%30===21&&!itemNear(r,6,busyBoulevard))place(makeWalker(),14.1+rnd(-.2,.2),2,r,true);
+    if(r%36===27&&!stNear){const w=makeWalker();w.rotation.y=Math.PI/2;place(w,7.25,2,r,true)}
   }}
 function genItemsTo(h){absItems(genItem,h,spawnItem);genItem=Math.max(genItem,h)}
 function genBldTo(h){
   while(genBld<h){const w=FMATS[0]?rnd(9,14):rnd(7,12);let blk=null;
     absItems(genBld-12,genBld+w+14,(it,p)=>{if(it.t3&&!blk&&p+it.t3>genBld&&p-it.t3<genBld+w)blk={it,p}});
-    if(blk){const room=blk.p-blk.it.t3-genBld;if(room>4)place(makeBuilding(room-.6),16,2,genBld+room/2);genBld=blk.p+blk.it.t3+.6}
-    else{place(makeBuilding(w),16,2,genBld+w/2);genBld+=w+rnd(.3,1.5)}
+    if(blk){const room=blk.p-blk.it.t3-genBld;if(room>4)place(makeBuilding(room-.6),20,2,genBld+room/2);genBld=blk.p+blk.it.t3+.6}
+    else{place(makeBuilding(w),20,2,genBld+w/2);genBld+=w+rnd(.3,1.5)}
   }}
 function cull(){for(let i=world.children.length-1;i>=0;i--){const o=world.children[i];if(o.userData.r<worldD-o.userData.back){world.remove(o);dispose(o)}}}
 function moveWorld(dz){
@@ -866,14 +888,14 @@ const scooterMesh=new THREE.Group();{const red=0x1fb894,dk=0x2a1446;
 scooterMesh.visible=false;diana.add(scooterMesh);
 
 let obstacles=[],coinsArr=[],powers=[];
-function addObstacle(type,lane,z,vz=0){
-  let v=null,half=.12;if(type==='van'){v=vz?'van':['van','cart','kvass'][ri(3)];half={van:2.5,cart:1.2,kvass:1.7}[v]}
-  const m=type==='low'?makeLow():type==='high'?makeHigh():makeVanV(v);
-  m.position.set(LANES[lane],0,z);m.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(m);
-  obstacles.push({type,lane,z,vz,half,m});
+function addObstacle(type,lane,z,vz=0,tier=0){
+  let v=null,half=.12;if(type==='van'){if(tier)half=.3;else{v=vz?'van':['van','cart','kvass'][ri(3)];half={van:2.5,cart:1.2,kvass:1.7}[v]}}
+  const m=type==='low'?makeLow():type==='high'?makeHigh():tier?makeWalker():makeVanV(v);
+  const x=laneX(tier,lane);m.position.set(x,TIERS[tier].y,z);m.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(m);
+  obstacles.push({type,lane,z,vz,half,m,tier,x});
 }
 function addBlock(lane,z,L,ramp){const m=makeBlock(L,ramp);m.position.set(LANES[lane],0,z);m.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(m);
-  obstacles.push({type:'block',lane,z,len:L,ramp,half:0,vz:0,m})}
+  obstacles.push({type:'block',lane,z,len:L,ramp,half:0,vz:0,m,tier:0,x:LANES[lane]})}
 // ряд киосков: в одной дорожке всегда рампа, длина ряда сдвигает следующий ряд препятствий
 function spawnBlocks(z,d){const L=[12,16,20][ri(3)],rl=ri(3),k=[null,null,null];k[rl]='ramp';
   for(let i=0;i<3;i++)if(i!==rl){const q=Math.random();k[i]=q<.3?'block':q<.42?'ramp':null}
@@ -885,7 +907,14 @@ function spawnBlocks(z,d){const L=[12,16,20][ri(3)],rl=ri(3),k=[null,null,null];
 function addCoin(x,y,z){const m=new THREE.Mesh(coinGeo,coinMat);m.position.set(x,y,z);scene.add(m);coinsArr.push({m,pulled:false})}
 function addPower(kind,lane,z){const s=new THREE.Sprite(powerMats[kind]);s.scale.set(1.1,1.1,1);s.position.set(LANES[lane],1.1,z);scene.add(s);powers.push({kind,m:s,base:1.1})}
 
-let rows=0;
+let rows=0,spawnZu=-40;
+function spawnRowU(z){const d=difficulty(),types=[];
+  for(let i=0;i<3;i++){const r=Math.random(),pn=.6-.22*d;types.push(r<pn?null:r<pn+.14?'low':r<pn+.26?'high':'van')}
+  if(types.every(t=>t))types[ri(3)]=null;
+  types.forEach((t,i)=>{if(t)addObstacle(t,i,z,t==='van'?rnd(.8,1.8):0,1)});
+  if(Math.random()<.45){const open=[0,1,2].filter(i=>types[i]!=='van'),li=open[ri(open.length)],x=laneX(1,li),t=types[li];
+    if(t==='low')for(let k=-2;k<=2;k++)addCoin(x,2.75+1.15*(1-(k/2.6)**2),z+k*1.45);
+    else for(let k=0;k<5;k++)addCoin(x,2.6,z+3-k*1.6)}}
 function spawnRow(z){
   rows++;const d=difficulty();const types=[];
   if(tut&&rows<=3){addObstacle(['low','high','van'][rows-1],1,z);return 0}
@@ -976,7 +1005,7 @@ function buzz(p){try{if(TG&&TG.HapticFeedback&&TG.isVersionAtLeast('6.1')){if(Ar
 const START=13,MAXS=30,G=30,JV=10.2;
 let jumpBuf=0,squash=0,cdT=0,cdShown=0,pops=[];
 let state='splash',speed=START,score=0,coins=0,magnetT=0,doubleT=0,spawnZ=-20,phase=0,dieT=0,shake=0,bumpCd=0,t=0;
-const P={lane:1,prev:1,x:0,y:0,vy:0,ground:true,slide:0,gnd:0};
+const P={lane:1,prev:1,x:0,y:0,vy:0,ground:true,slide:0,gnd:0,tier:0};
 let best=+store.get('dianaRunBest','0')||0;
 let wallet=+store.get('dr_wallet','0')||0,mult=+store.get('dr_mult','1')||1;
 let contUsed=0,invT=0,superT=0,shieldT=0,slowMo=1,runStat=null,dusts=[];
@@ -985,7 +1014,8 @@ let tut=store.get('dr_tut','0')!=='1',tutNeed=null,tutStep=0;
 /* ---------- задания: три сразу, все выполнены - множитель очков +1 ---------- */
 const MT={coins:{t:n=>`Собери ${n} монет за забег`,b:[40,80,150,250,400]},dist:{t:n=>`Пробеги ${n} м за забег`,b:[300,600,1000,1500,2200]},
   jumps:{t:n=>`Прыгни ${n} раз за забег`,b:[10,20,35,50,70]},slides:{t:n=>`Сделай ${n} подкатов за забег`,b:[6,12,20,30,45]},
-  roof:{t:n=>`Пробеги ${n} м по крышам киосков`,b:[20,60,120,200,300]},powers:{t:n=>`Подбери ${n} бонуса за забег`,b:[2,3,4,6,8]}};
+  roof:{t:n=>`Пробеги ${n} м по крышам киосков`,b:[20,60,120,200,300]},powers:{t:n=>`Подбери ${n} бонуса за забег`,b:[2,3,4,6,8]},
+  upper:{t:n=>`Пробеги ${n} м по верхней аллее`,b:[100,250,450,700,1000]}};
 let missions=null;try{missions=JSON.parse(store.get('dr_missions','null'))}catch(e){}
 function newMissions(){const lv=Math.min(4,mult-1);missions=Object.keys(MT).sort(()=>Math.random()-.5).slice(0,3).map(k=>({k,n:MT[k].b[lv],done:false}));store.set('dr_missions',JSON.stringify(missions))}
 if(!Array.isArray(missions)||missions.length!==3||missions.some(m=>!MT[m.k]))newMissions();
@@ -1033,7 +1063,7 @@ const PASS_BONUS=500;let pass=[],passFull=0,runVisited=new Set(),runFull=false;
 function loadPass(){try{const a=JSON.parse(store.get('dr_pass','[]'));pass=Array.isArray(a)?a.filter(i=>ROUTE[i]):[]}catch(e){pass=[]}passFull=+store.get('dr_pass_full','0')||0}
 loadPass();
 function visitSection(i){runVisited.add(i);
-  if(!pass.includes(i)){pass.push(i);store.set('dr_pass',JSON.stringify(pass));setTimeout(()=>{if(state==='play')toast('Новый значок!')},900)}
+  if(!pass.includes(i)){pass.push(i);store.set('dr_pass',JSON.stringify(pass));setTimeout(()=>{if(state==='play')toast('Значок!')},900)}
   if(!runFull&&runVisited.size===ROUTE.length){runFull=true;passFull++;store.set('dr_pass_full',String(passFull));wallet+=PASS_BONUS;store.set('dr_wallet',String(wallet));
     setTimeout(()=>{if(state==='play'){toast('Вся набережная! +'+PASS_BONUS);sfx('power');say('record',{prio:5})}},1500)}}
 function renderPass(){$('stampList').innerHTML=ROUTE.map((r,i)=>`<div class="stamp${pass.includes(i)?' on':''}"><i>${i+1}</i><span>${r.name}</span></div>`).join('');
@@ -1126,15 +1156,15 @@ function sayTick(){if(!sayEl.classList.contains('show'))return;
 
 function poseReset(){mdlWrap.rotation.set(0,0,0);mdlWrap.scale.set(1,1,1);bumpAnim=0;inner.rotation.set(0,0,0);inner.position.set(0,0,0);inner.scale.set(1,1,1);squash=0;[legL,legR,armL,armR].forEach(l=>l.rotation.set(0,0,0));tail.rotation.set(0,0,0)}
 function toMenu(){
-  state='menu';clearWorld();resetWorld();poseReset();setWeather('none');P.x=0;P.y=0;diana.position.set(0,0,0);shadow.position.x=0;
+  state='menu';clearWorld();resetWorld();poseReset();setWeather('none');P.x=0;P.y=0;P.tier=0;P.gnd=0;climb=null;camTX=camTY=0;diana.position.set(0,0,0);shadow.position.x=0;
   refreshMenu();show('menu',true);show('sndBtn',true);show('hud',false);show('over',false);show('pause',false);show('chance',false);show('tut',false);diana.visible=true;
   sayHide();setTimeout(()=>{if(state==='menu')say('hello',{prio:1})},1200);
 }
 function startGame(){
   ensureAudio();clearWorld();resetWorld();curSec=-1;poseReset();pickWeather();
-  Object.assign(P,{lane:1,prev:1,x:0,y:0,vy:0,ground:true,slide:0,gnd:0});
+  Object.assign(P,{lane:1,prev:1,x:0,y:0,vy:0,ground:true,slide:0,gnd:0,tier:0});climb=null;camTX=camTY=0;spawnZu=-40;
   speed=START;score=0;coins=0;jumpBuf=0;magnetT=0;doubleT=0;spawnZ=-20;rows=0;shake=0;bumpCd=0;mStep=0;mNext=0;
-  contUsed=0;invT=0;superT=0;shieldT=0;scooterMesh.visible=false;slowMo=1;tutNeed=null;tutStep=0;runStat={coins:0,dist:0,jumps:0,slides:0,roof:0,powers:0};runVisited=new Set();runFull=false;
+  contUsed=0;invT=0;superT=0;shieldT=0;scooterMesh.visible=false;slowMo=1;tutNeed=null;tutStep=0;runStat={coins:0,dist:0,jumps:0,slides:0,roof:0,powers:0,upper:0,stairs:0};runVisited=new Set();runFull=false;
   diana.rotation.y=0;diana.visible=true;state='play';$('mmTag').textContent='×'+mult;$('mmTag').hidden=mult<2;
   show('menu',false);show('over',false);show('pause',false);show('chance',false);show('missions',false);show('shop',false);show('tut',false);show('hud',true);show('sndBtn',false);
   toast('Беги!');sfx('go');sayHide();sayFlags={};setTimeout(()=>{if(state==='play')say('start',{prio:1})},1100);
@@ -1155,7 +1185,7 @@ function offerChance(cost){state='chance';setTimeout(()=>{if(state==='chance')sa
   $('noContBtn').onclick=()=>{if(state!=='chance')return;clearInterval(chanceTimer);finishRun()}}
 function doContinue(cost){const fromRun=Math.min(coins,cost);coins-=fromRun;wallet-=cost-fromRun;store.set('dr_wallet',String(wallet));contUsed++;show('chance',false);
   for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];if(o.z>-30&&o.z-(o.len||0)<12){scene.remove(o.m);dispose(o.m);obstacles.splice(i,1)}}
-  Object.assign(P,{y:0,vy:0,ground:true,slide:0,gnd:0});poseReset();invT=3;
+  climb=null;Object.assign(P,{x:laneX(P.tier,P.lane),y:TIERS[P.tier].y,vy:0,ground:true,slide:0,gnd:TIERS[P.tier].y});poseReset();invT=3;
   if(mdl){playA('run',{fade:0});mixer.update(.01)}
   state='countdown';cdT=2;cdShown=0;clock.getDelta();say('revive',{prio:4})}
 function finishRun(){const s=Math.floor(score),isNew=s>best;if(isNew){best=s;store.set('dianaRunBest',String(best))}
@@ -1163,9 +1193,24 @@ function finishRun(){const s=Math.floor(score),isNew=s>best;if(isNew){best=s;sto
   $('ovScore').textContent=s;$('ovCoins').textContent=coins;$('ovBest').textContent=best;$('ovPlaces').textContent=runVisited.size+'/'+ROUTE.length;show('ovNew',isNew);show('over',true);state='over';if(isNew&&s>0)setTimeout(()=>say('record',{prio:5}),500)}
 
 /* ---------- input ---------- */
-function lane(d){if(state!=='play')return;const n=Math.max(0,Math.min(2,P.lane+d));if(n!==P.lane){P.prev=P.lane;P.lane=n;sfx('lane');tutAct('lane')}}
-function jump(){if(state!=='play')return;if(!P.ground){jumpBuf=.18;return}jumpBuf=0;P.vy=JV*(superT>0?1.45:1);P.ground=false;if(superT>0)say('jump',{p:.25,gap:9000});P.slide=0;sfx('jump');runStat.jumps++;tutAct('jump')}
-function slide(){if(state!=='play')return;jumpBuf=0;if(!P.ground)P.vy=Math.min(P.vy,-17);P.slide=.72;sfx('slide');runStat.slides++;tutAct('slide')}
+// лестница: с правой дорожки низа свайп вправо - наверх, с левой дорожки аллеи свайп влево - вниз
+function stairNear(){const m=loopM(worldD);return STAIRS.some(s=>s-m>-4&&s-m<14)}
+function startClimb(to){climb={t:0,fx:P.x,fy:P.y,tx:laneX(to,to?0:2),ty:TIERS[to].y};P.tier=to;P.lane=P.prev=to?0:2;P.vy=0;P.slide=0;P.ground=false;
+  sfx('jump');show('tut',false);runStat.stairs++}
+function climbStep(dt){climb.t+=dt/.6;const k=Math.min(1,climb.t),e=k*k*(3-2*k);
+  P.x=climb.fx+(climb.tx-climb.fx)*e;P.gnd=climb.fy+(climb.ty-climb.fy)*e;P.y=P.gnd+Math.sin(k*Math.PI)*1.1;
+  if(k>=1){P.x=climb.tx;P.y=P.gnd=climb.ty;P.ground=true;squash=.14;climb=null;sfx('land')}}
+let stairTips=+store.get('dr_stair_tips','0')||0,stairTipT=0;
+function stairHints(){const m=loopM(worldD),lp=Math.floor(worldD/LOOP);
+  for(const s of STAIRS){const ds=s-m,key='st'+lp+'_'+s;if(ds>16&&ds<45&&!sayFlags[key]){sayFlags[key]=1;
+    if(stairTips<8&&!tutNeed){stairTips++;store.set('dr_stair_tips',String(stairTips));
+      $('tutArr').textContent=P.tier?'↙':'↗';$('tutTxt').textContent=P.tier?'Спуск: левая дорожка и свайп влево':'Лестница наверх: правая дорожка и свайп вправо';
+      show('tut',true);clearTimeout(stairTipT);stairTipT=setTimeout(()=>{if(!tutNeed)show('tut',false)},2200)}}}}
+function lane(d){if(state!=='play'||climb)return;
+  if(d>0&&P.tier===0&&P.lane===2&&stairNear()){startClimb(1);return}
+  if(d<0&&P.tier===1&&P.lane===0&&stairNear()){startClimb(0);return}const n=Math.max(0,Math.min(2,P.lane+d));if(n!==P.lane){P.prev=P.lane;P.lane=n;sfx('lane');tutAct('lane')}}
+function jump(){if(state!=='play'||climb)return;if(!P.ground){jumpBuf=.18;return}jumpBuf=0;P.vy=JV*(superT>0?1.45:1);P.ground=false;if(superT>0)say('jump',{p:.25,gap:9000});P.slide=0;sfx('jump');runStat.jumps++;tutAct('jump')}
+function slide(){if(state!=='play'||climb)return;jumpBuf=0;if(!P.ground)P.vy=Math.min(P.vy,-17);P.slide=.72;sfx('slide');runStat.slides++;tutAct('slide')}
 addEventListener('keydown',e=>{
   const k=e.key;
   if(k==='ArrowLeft'||k==='a'||k==='A'||k==='ф'||k==='Ф')lane(-1);
@@ -1218,38 +1263,42 @@ function update(dt){
   if(worldD>2000&&!sayFlags.long){sayFlags.long=1;say('long')}
   if(speed>=MAXS-.01&&!sayFlags.tired){sayFlags.tired=1;say('tired')}
   spawnZ+=dz;while(spawnZ>-130){spawnZ-=15+speed*.55+Math.random()*5;spawnZ-=spawnRow(spawnZ)||0}
+  spawnZu+=dz;while(spawnZu>-130){spawnZu-=22+speed*.6+Math.random()*8;spawnRowU(spawnZu)}
+  stairHints();
   jumpBuf=Math.max(0,jumpBuf-dt);magnetT=Math.max(0,magnetT-dt);doubleT=Math.max(0,doubleT-dt);bumpCd=Math.max(0,bumpCd-dt);
   superT=Math.max(0,superT-dt);shieldT=Math.max(0,shieldT-dt);scooterMesh.visible=shieldT>0;invT=Math.max(0,invT-dt);diana.visible=invT<=0||Math.floor(t*12)%2===0;
   runStat.dist=Math.floor(worldD);
   // подсказка близко к препятствию: прыжок и подкат отсюда точно проходят (раньше подкат кончался до арки)
-  if(tut&&!tutNeed){const o=obstacles.find(o=>o.lane===P.lane&&o.type!=='block'&&!o.tutSeen&&o.z+o.half>-6.2&&o.z+o.half<-2.8);
+  if(tut&&!tutNeed){const o=obstacles.find(o=>o.tier===P.tier&&o.lane===P.lane&&o.type!=='block'&&!o.tutSeen&&o.z+o.half>-6.2&&o.z+o.half<-2.8);
     if(o){o.tutSeen=true;tutNeed=o.type==='low'?'jump':o.type==='high'?'slide':'lane';slowMo=.15;showTut(tutNeed)}}
 
   // player
-  P.x+=(LANES[P.lane]-P.x)*Math.min(1,dt*19);
+  if(climb)climbStep(dt);else{
+  P.x+=(laneX(P.tier,P.lane)-P.x)*Math.min(1,dt*19);
   // земля под ногами: плитка или крыша киосков/рампа; в стенку киоска сбоку - отскок, в лоб - падение
   const gr=groundAt(P.x,P.y);
   if(gr.wall){if(gr.wall.off>.35){if(bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}}else if(hit())return}
   if(P.ground){if(gr.g>=P.y-.06)P.y=gr.g;else{P.ground=false;P.vy=0}}
   if(!P.ground){P.vy-=G*dt;P.y+=P.vy*dt;if(P.y<=gr.g){const hard=P.vy<-6;P.y=gr.g;P.vy=0;P.ground=true;squash=.16;if(hard){spawnDust();sfx('land')}if(jumpBuf>0)jump()}}
-  P.gnd=gr.g;if(P.ground&&P.y>BH-.1)runStat.roof+=dz;
-  if(P.slide>0&&P.ground)P.slide-=dt;
+  P.gnd=gr.g;if(P.tier===0&&P.ground&&P.y>BH-.1)runStat.roof+=dz;
+  if(P.slide>0&&P.ground)P.slide-=dt;}
+  if(P.tier===1)runStat.upper+=dz;
 
   // obstacles
   for(let i=obstacles.length-1;i>=0;i--){const o=obstacles[i];o.z+=dz;
     // an oncoming van drives only while it stays well behind the next row, so it never closes a row's free lane
-    if(o.vz){let gap=1e9;for(const q of obstacles)if(q!==o&&q.z>o.z)gap=Math.min(gap,(q.type==='block'?q.z-q.len:q.z-q.half)-o.z-o.half);if(gap>Math.max(8,speed*.6)+4.5)o.z+=o.vz*dt}
+    if(o.vz){let gap=1e9;for(const q of obstacles)if(q!==o&&q.tier===o.tier&&q.z>o.z)gap=Math.min(gap,(q.type==='block'?q.z-q.len:q.z-q.half)-o.z-o.half);if(gap>Math.max(8,speed*.6)+4.5)o.z+=o.vz*dt}
     o.m.position.z=o.z;
     if(o.type==='block'){if(o.z-o.len>14){scene.remove(o.m);dispose(o.m);obstacles.splice(i,1)}continue}
     if(o.z-o.half>14){scene.remove(o.m);dispose(o.m);obstacles.splice(i,1);continue}
     if(o.z+o.half<-.45||o.z-o.half>.45)continue;
-    const off=Math.abs(P.x-LANES[o.lane]);
+    if(climb||o.tier!==P.tier)continue;const off=Math.abs(P.x-o.x),ry=P.y-TIERS[o.tier].y;
     if(o.type==='van'){
-      if(off<.62&&P.y<2.5){if(hit())return}
-      if(off<1.25&&P.y<2.5&&bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}
+      if(off<.62&&ry<2.5){if(hit())return}
+      if(off<1.25&&ry<2.5&&bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}
     }else if(off<.75){
-      if(o.type==='low'&&P.y<.95){if(hit())return}
-      if(o.type==='high'&&!(P.slide>0&&P.y<.45)&&P.y<2.3){if(hit())return}
+      if(o.type==='low'&&ry<.95){if(hit())return}
+      if(o.type==='high'&&!(P.slide>0&&ry<.45)&&ry<2.3){if(hit())return}
     }
   }
   // coins
@@ -1270,7 +1319,7 @@ function update(dt){
   // animation
   phase+=dt*(9+speed*.28);const s=Math.sin(phase);
   diana.position.set(P.x,P.y,0);
-  const lean=(LANES[P.lane]-P.x)*-.12;
+  const dl=Math.max(-1,Math.min(1,laneX(P.tier,P.lane)-P.x)),lean=dl*-.12;
   if(P.slide>0&&P.ground){
     inner.rotation.x+=(1.15-inner.rotation.x)*Math.min(1,dt*20);inner.position.y=.05;
     legL.rotation.x=legR.rotation.x=-.5;armL.rotation.x=armR.rotation.x=-.4;armL.rotation.z=-.5;armR.rotation.z=.5;
@@ -1284,13 +1333,13 @@ function update(dt){
   inner.rotation.z=lean;
   squash=Math.max(0,squash-dt*.9);inner.scale.set(1+squash*.6,1-squash,1+squash*.6);
   // при смене дорожки Диана разворачивается и наклоняется в сторону движения
-  if(mdl){mdlWrap.rotation.z=lean*1.6;mdlWrap.rotation.y=(LANES[P.lane]-P.x)*-.35;mdlWrap.scale.set(1+squash*.4,1-squash*.7,1+squash*.4);bumpAnim=Math.max(0,bumpAnim-dt);
+  if(mdl){mdlWrap.rotation.z=lean*1.6;mdlWrap.rotation.y=dl*-.35;mdlWrap.scale.set(1+squash*.4,1-squash*.7,1+squash*.4);bumpAnim=Math.max(0,bumpAnim-dt);
     if(P.slide>0&&P.ground)playA('slide',{once:true,fade:.08,ts:1.1});
     else if(!P.ground)playA('jump',{once:true,fade:.08,ts:1.25});
     else if(bumpAnim>0)playA('bump',{once:true,fade:.08});
     else playA('run',{fade:.12,ts:.7+speed*.03})}
   tail.rotation.x=.25+Math.sin(phase*2)*.22;tail.rotation.z=Math.sin(phase)*.3;
-  shadow.position.x=P.x;const sc=Math.max(.45,1-P.y*.3);shadow.scale.set(sc,sc,sc);
+  shadow.position.x=P.x;shadow.position.y=P.gnd+.075;const sc=Math.max(.45,1-P.y*.3);shadow.scale.set(sc,sc,sc);
 
   playCam(dt);
   const si=Math.floor(score);if(si!==shownScore){ui.score.textContent=si;shownScore=si}
@@ -1299,10 +1348,11 @@ function update(dt){
 }
 function playCam(dt){
   const k=Math.min(1,dt*6);const fv=baseFov+difficulty()*7;if(Math.abs(camera.fov-fv)>.01){camera.fov+=(fv-camera.fov)*k;camera.updateProjectionMatrix()}
-  camera.position.x+=(P.x*.5-camera.position.x)*k;camera.position.y+=(5.4+P.y*.35-camera.position.y)*k;camera.position.z+=(7.6-camera.position.z)*k;
+  const T=TIERS[P.tier],kt=Math.min(1,dt*3.5);camTX+=(T.x-camTX)*kt;camTY+=(T.y-camTY)*kt;
+  camera.position.x+=(camTX+(P.x-camTX)*.5-camera.position.x)*k;camera.position.y+=(5.4+camTY+(P.y-camTY)*.35-camera.position.y)*k;camera.position.z+=(7.6-camera.position.z)*k;
   let sx=0,sy=0;if(shake>0&&!matchMedia('(prefers-reduced-motion: reduce)').matches){sx=(Math.random()-.5)*shake;sy=(Math.random()-.5)*shake}
   shake=Math.max(0,shake-dt);
-  camera.lookAt(camera.position.x*.6+sx,P.y*.25+sy,-14);
+  camera.lookAt(camTX+(camera.position.x-camTX)*.6+sx,camTY+(P.y-camTY)*.25+sy,-14);
 }
 function updateDying(dt){
   dieT+=dt;inner.rotation.x+=(-1.45-inner.rotation.x)*Math.min(1,dt*7);if(mdl){mdlWrap.rotation.z=0;playA('fall',{once:true,fade:.1})}
@@ -1337,8 +1387,8 @@ function loop(){
   if(state!=='pause'&&state!=='countdown')envTick(dt);sayTick();renderer.render(scene,camera);
 }
 // земля в точке игрока: крыша ряда киосков (BH), рампа (линейно от 0 до BH) или плитка; что выше шага - стена
-function groundAt(x,y){let g=0,wall=null;
-  for(const o of obstacles){if(o.type!=='block')continue;const off=Math.abs(x-LANES[o.lane]);if(off>1)continue;
+function groundAt(x,y){let g=TIERS[P.tier].y,wall=null;
+  for(const o of obstacles){if(o.type!=='block'||o.tier!==P.tier)continue;const off=Math.abs(x-o.x);if(off>1)continue;
     let h=-1;if(o.z>=-.3&&o.z-o.len<=.3)h=BH;else if(o.ramp&&o.z<-.3&&o.z>-RL)h=BH*(1+o.z/RL);
     if(h<0)continue;if(h<=y+.45)g=Math.max(g,h);else if(!wall||off<wall.off)wall={o,off}}
   return {g,wall}}
@@ -1365,7 +1415,7 @@ applyArt();
 // фоновые файлы сообщают о себе загрузчику, а он - сюда
 window.__lateLoaded=n=>{if(n==='diana-model.js')initModel();else if(n==='diana-assets2.js')applyArt();else if(n==='diana-music.js'){window.__musicPending=false;loadMusic()}};
 setTimeout(()=>{$('splash').classList.add('out');toMenu();setTimeout(()=>show('splash',false),550)},Math.max(250,1900-performance.now()));
-window.__dr={say,gameOver,setWeather,giveShield:()=>{shieldT=20},get shieldT(){return shieldT},get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
+window.__dr={say,gameOver,startClimb,STAIRS,get worldD(){return worldD},get tier(){return P.tier},get climbing(){return !!climb},setWeather,giveShield:()=>{shieldT=20},get shieldT(){return shieldT},get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
 };
 </script>
 <script>
