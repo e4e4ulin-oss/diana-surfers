@@ -79,6 +79,10 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
 #say{position:fixed;left:0;top:0;z-index:25;pointer-events:none;width:max-content;max-width:min(70vw,300px);padding:9px 14px;border-radius:18px;background:#fff7ea;color:var(--plum);font-weight:800;font-size:clamp(14px,4.2vw,18px);line-height:1.25;text-align:center;box-shadow:0 4px 0 rgba(42,20,70,.35);opacity:0;transform:translate(-50%,-100%) scale(.6);transition:opacity .18s,transform .18s}
 #say::after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-9px;border:9px solid transparent;border-bottom:0;border-top-color:#fff7ea}
 #say.show{opacity:1;transform:translate(-50%,-100%) scale(1)}
+/* в забеге реплика - субтитр внизу под Дианой, чтобы облачко не закрывало дорогу */
+#say.sub{left:50%!important;top:auto!important;bottom:calc(var(--sab) + 74px);max-width:min(88vw,420px);background:rgba(42,20,70,.78);color:#fff7ea;font-size:clamp(14px,4vw,17px);box-shadow:none;border-radius:14px;transform:translate(-50%,10px)}
+#say.sub::after{display:none}
+#say.sub.show{transform:translate(-50%,0)}
 .sec{position:absolute;left:max(14px,env(safe-area-inset-left,0px));bottom:calc(var(--sab) + 18px);display:flex;align-items:center;gap:8px;background:rgba(42,20,70,.8);color:#fff;font-weight:900;font-size:15px;padding:8px 14px 8px 10px;border-radius:14px;transform:translateX(calc(-100% - 30px));transition:transform .45s cubic-bezier(.2,1.4,.4,1)}
 .sec.show{transform:none}
 .sec svg{width:18px;height:18px;color:var(--gold);flex:none}
@@ -1201,6 +1205,7 @@ function playVoice(n){const V=window.DIANA_VOICE;if(!V||!V[n]||!AC||!soundOn)ret
   AC.decodeAudioData(u.buffer,b=>{voiceBufs[n]=b;go(b)},()=>{})}
 const sayV=new THREE.Vector3();
 function sayTick(){if(!sayEl.classList.contains('show'))return;
+  const sub=state==='play'||state==='countdown'||state==='dying';sayEl.classList.toggle('sub',sub);if(sub)return;
   // на экране проигрыша облачко у картинки Дианы вверху карточки, а не поверх кнопок
   const img=$('ovImg');if(state==='over'&&!img.hidden&&img.offsetHeight){const r=img.getBoundingClientRect();sayEl.style.left=Math.min(innerWidth-sayEl.offsetWidth/2-12,r.left+r.width*.5+110)+'px';sayEl.style.top=Math.max(r.top+r.height*.55,sayEl.offsetHeight+10)+'px';return}
   if(state==='chance'){const r=$('chance').querySelector('.card').getBoundingClientRect();sayEl.style.left=innerWidth/2+'px';sayEl.style.top=(r.top-14)+'px';return}
