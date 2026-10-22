@@ -173,6 +173,7 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
     <h2>Пауза</h2>
     <button id="resumeBtn" class="btn-play">Дальше</button>
     <button id="menuBtn1" class="btn-ghost">В меню</button>
+    <button id="dbgBtn" class="btn-ghost" style="font-size:13px;opacity:.6">Отладка: выкл</button>
   </div>
 </div>
 
@@ -186,12 +187,15 @@ button:focus-visible{outline:4px solid var(--gold);outline-offset:3px}
     <div class="stat"><span>Места за забег</span><b id="ovPlaces">0/10</b></div>
     <div class="newbest" id="ovNew" hidden>Новый рекорд!</div>
     <button id="shareBtn" class="btn-share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7M16 6l-4-4-4 4M12 2v13"/></svg><span id="shareTxt">Похвастаться</span></button>
+    <div class="cost" id="ovWhy" hidden></div>
+    <button id="logBtn" class="btn-ghost" style="font-size:14px" hidden>Скопировать лог</button>
     <button id="againBtn" class="btn-play">Ещё раз</button>
     <button id="menuBtn2" class="btn-ghost">В меню</button>
   </div>
 </div>
 
 <div id="say"></div>
+<div id="dbgBox" hidden style="position:fixed;left:8px;top:calc(var(--sat) + 70px);z-index:26;pointer-events:none;background:rgba(20,10,40,.72);color:#fff;font:11px/1.35 monospace;padding:6px 8px;border-radius:8px;white-space:pre"></div>
 <div id="chance" class="screen dim" hidden>
   <div class="card">
     <h2>Ещё шанс?</h2>
@@ -417,7 +421,20 @@ const farLights=new THREE.Group();scene.add(farLights);
 // streamed objects live in one group that slides toward the camera
 const world=new THREE.Group();scene.add(world);
 let worldD=0,genFill=0,genItem=0,genBld=0;
-function place(o,x,y,r,cast,back){o.position.set(x,y,-r);o.userData.r=r;o.userData.back=back||25;if(cast)o.traverse(m=>{if(m.isMesh)m.castShadow=true});world.add(o);return o}
+// склейка: одноцветные непрозрачные детали без текстур сливаются в одну сетку с цветами вершин -
+// лавка из 9 брусков, прохожий из 7 деталей и т.п. рисуются за один вызов вместо десятка
+const bakedMat=new THREE.MeshLambertMaterial({vertexColors:true}),_bm=new THREE.Matrix4(),_bc=new THREE.Color();
+function bake(g){if(!g||g.isMesh||g.isSprite)return g;g.updateMatrixWorld(true);_bm.copy(g.matrixWorld).invert();const parts=[];
+  g.traverse(o=>{if(!o.isMesh||o===g)return;const m=o.material;if(Array.isArray(m)||!m.isMeshLambertMaterial||m.map||m.transparent||m.vertexColors||m.side!==THREE.FrontSide||(m.emissive&&m.emissive.getHex()))return;parts.push(o)});
+  if(parts.length<2)return g;
+  const pos=[],nor=[],col=[],nm=new THREE.Matrix3(),v=new THREE.Vector3();
+  for(const o of parts){const gg=o.geometry.index?o.geometry.toNonIndexed():o.geometry,mw=new THREE.Matrix4().multiplyMatrices(_bm,o.matrixWorld);nm.getNormalMatrix(mw);
+    const P=gg.attributes.position,N=gg.attributes.normal;_bc.copy(o.material.color);
+    for(let i=0;i<P.count;i++){v.fromBufferAttribute(P,i).applyMatrix4(mw);pos.push(v.x,v.y,v.z);v.fromBufferAttribute(N,i).applyMatrix3(nm).normalize();nor.push(v.x,v.y,v.z);col.push(_bc.r,_bc.g,_bc.b)}
+    if(gg!==o.geometry)gg.dispose();o.parent.remove(o)}
+  const bg=new THREE.BufferGeometry();bg.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));bg.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));bg.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  g.add(new THREE.Mesh(bg,bakedMat));return g}
+function place(o,x,y,r,cast,back){bake(o);o.position.set(x,y,-r);o.userData.r=r;o.userData.back=back||25;if(cast)o.traverse(m=>{if(m.isMesh)m.castShadow=true});world.add(o);return o}
 function dispose(o){o.traverse(m=>{if(m.isMesh&&!m.geometry.userData.shared)m.geometry.dispose()})}
 
 const lampMat=new THREE.MeshLambertMaterial({color:0xffffff,emissive:0xa08a50});
@@ -676,10 +693,9 @@ function spawnItem(it,p){
     case'beach':place(makeBeach(),0,0,p,false,120);break;
   }}
 const poolMat=new THREE.MeshBasicMaterial({map:glowTex,color:0xffc070,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
-const lampShadowMat=new THREE.MeshBasicMaterial({map:glowTex,color:0x000000,transparent:true,opacity:.2,depthWrite:false});
-// пятно света под фонарём (ночью) и косая тень от него (днём, солнце со стороны Волги)
+// пятно света под фонарём ночью (только на нижней набережной: каждое пятно - отдельная отрисовка)
 function lampFx(x,y,r,px){const pl=mesh(geo('pool',()=>new THREE.PlaneGeometry(5.2,5.2)),poolMat,0,0,0);pl.rotation.x=-Math.PI/2;place(pl,px,y+.02,r);
-  const sh=mesh(geo('lsh',()=>new THREE.PlaneGeometry(3.6,.42)),lampShadowMat,0,0,0);sh.rotation.x=-Math.PI/2;sh.rotation.z=.98;place(sh,x+.95,y+.015,r+1.45)}
+}
 const lantern=()=>{const g=sp('lantern',4)||makeLantern(),gl=new THREE.Sprite(glowMat);gl.position.y=AS.lantern?3.55:3.3;gl.scale.setScalar(1.7);g.add(gl);return g},tree=()=>sp('tree',rnd(4,5.2))||makeTree();
 // гостиница стоит в ряду домов фасадом к аллее (картинка-билборд разворачивалась к камере и залезала на аллею)
 function slovakiaArt(){const g=new THREE.Group(),W=24,H=W*aspect('lm_slovakia');
@@ -708,7 +724,7 @@ const busyBoulevard=it=>['fedin','rotunda','petr','cinema'].includes(it.lm);
 function genFillTo(h){
   for(;genFill<h;genFill+=3){const r=genFill;
     const stNear=stairNearR(r);if(stairAt(r))place(makeStairs(),0,0,r,true,20);
-    if(r%12===0){if(!itemNear(r,4,busyTerrace)&&!stNear){place(lantern(),4.05,.3,r,true);lampFx(4.05,0,r,3.1)}place(lantern(),-3.95,1,r+6,true);lampFx(-3.95,0,r+6,-2.9);place(lantern(),6.75,2,r+6,true);lampFx(6.75,2,r+6,7.8)}
+    if(r%12===0){if(!itemNear(r,4,busyTerrace)&&!stNear){place(lantern(),4.05,.3,r,true);lampFx(4.05,0,r,3.1)}place(lantern(),-3.95,1,r+6,true);lampFx(-3.95,0,r+6,-2.9);place(lantern(),6.75,2,r+6,true)}
     if(r%24===6&&AS.vase&&!itemNear(r,5,busyTerrace)&&!stNear)place(sp('vase',1.5),5.1,.31,r);
     if(r%9===0&&!itemNear(r,7,busyBoulevard))place(tree(),15.2+rnd(-.2,.2),2,r,true);
     if(r%24===12&&!itemNear(r,6,busyBoulevard)){const b=makeBench();b.rotation.y=-Math.PI/2;place(b,14.7,2,r,true)}
@@ -757,7 +773,8 @@ function applyTime(d){const k=Math.max(0,Math.floor(d/LOOP)),cur=PRE[k%3],prev=P
   const n=prev.n+(cur.n-prev.n)*f;
   // блики: днём белые, вечером оранжевые и ярче, ночью тёплые и слабые; в непогоду тускнеют
   for(const gl of glints){gl.m.color.setHex(lerpHex(lerpHex(0xffffff,0xffa24a,Math.min(1,n*1.8)),0xffd9a0,Math.max(0,n-.55)*2.2));gl.m.opacity=(n<.55?.7+n*.5:.98-(n-.55)*1.1)*(.4+.6*wDim)}
-  poolMat.opacity=n*.9;lampShadowMat.opacity=(1-n)*.38*wDim;sunH=(prev.sh||16)+((cur.sh||16)-(prev.sh||16))*f;
+  poolMat.opacity=n*.9;
+  const qq=window.__q==null?2:window.__q;poolMat.visible=qq>=2&&n>.02;glowMat.visible=n>.02;farGlowMat.visible=n>.02;sunH=(prev.sh||16)+((cur.sh||16)-(prev.sh||16))*f;
   cloudMat.emissive.setHex(lerpHex(0x555566,0x080a16,n));if(ov>0)cloudMat.emissive.multiplyScalar(1-ov*.8);glowMat.opacity=n;farGlowMat.opacity=n*.9;lampMat.emissive.setRGB(.63+.37*n,.54+.3*n,.31+.2*n);
   for(const m of nightMats)m.emissive.setRGB(.5*n,.4*n,.26*n)}
 applyTime(0);
@@ -919,10 +936,10 @@ let obstacles=[],coinsArr=[],powers=[];
 function addObstacle(type,lane,z,vz=0,tier=0){
   let v=null,half=.12;if(type==='van'){if(tier)half=.3;else{v=vz?'van':['van','cart','kvass'][ri(3)];half={van:2.5,cart:1.2,kvass:1.7}[v]}}
   const m=type==='low'?makeLow():type==='high'?makeHigh():tier?makeWalker():makeVanV(v);
-  const x=laneX(tier,lane);m.position.set(x,TIERS[tier].y,z);m.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(m);
+  bake(m);const x=laneX(tier,lane);m.position.set(x,TIERS[tier].y,z);m.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(m);
   obstacles.push({type,lane,z,vz,half,m,tier,x});
 }
-function addBlock(lane,z,L,ramp){const m=makeBlock(L,ramp);m.position.set(LANES[lane],0,z);m.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(m);
+function addBlock(lane,z,L,ramp){const m=bake(makeBlock(L,ramp));m.position.set(LANES[lane],0,z);m.traverse(o=>{if(o.isMesh)o.castShadow=true});scene.add(m);
   obstacles.push({type:'block',lane,z,len:L,ramp,half:0,vz:0,m,tier:0,x:LANES[lane]})}
 // ряд киосков: в одной дорожке всегда рампа, длина ряда сдвигает следующий ряд препятствий
 function spawnBlocks(z,d){const L=[12,16,20][ri(3)],rl=ri(3),k=[null,null,null];k[rl]='ramp';
@@ -1106,7 +1123,7 @@ function tutAct(n){if(tutNeed!==n)return;tutNeed=null;slowMo=1;show('tut',false)
 
 /* ---------- автокачество: если кадров мало, выключаем тени и снижаем разрешение ---------- */
 let quality=+store.get('dr_q','2');const qAcc={t:0,n:0,bad:0};
-function applyQuality(){sun.castShadow=quality>=2;renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,quality>=2?2:quality===1?1.25:.9));resize()}
+function applyQuality(){window.__q=quality;sun.castShadow=quality>=2;todKey='';if(window.__dbg)dbgLog('quality',{q:quality});renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,quality>=2?2:quality===1?1.25:.9));resize()}
 function qualityTick(raw){if(state!=='play'||quality===0)return;qAcc.t+=raw;qAcc.n++;
   if(qAcc.t>=2){const fps=qAcc.n/qAcc.t;qAcc.t=qAcc.n=0;if(fps<38){if(++qAcc.bad>=2){quality--;qAcc.bad=0;store.set('dr_q',String(quality));applyQuality()}}else qAcc.bad=0}}
 
@@ -1200,13 +1217,29 @@ function startGame(){
   ensureAudio();clearWorld();resetWorld();curSec=-1;poseReset();pickWeather();
   Object.assign(P,{lane:1,prev:1,x:0,y:0,vy:0,ground:true,slide:0,gnd:0,tier:0});climb=null;camTX=camTY=0;spawnZu=-40;
   speed=START;score=0;coins=0;jumpBuf=0;magnetT=0;doubleT=0;spawnZ=-20;rows=0;shake=0;bumpCd=0;mStep=0;mNext=0;
-  contUsed=0;invT=0;superT=0;shieldT=0;scooterMesh.visible=false;slowMo=1;tutNeed=null;tutStep=0;runStat={coins:0,dist:0,jumps:0,slides:0,roof:0,powers:0,upper:0,stairs:0};runVisited=new Set();runFull=false;
+  contUsed=0;invT=0;superT=0;shieldT=0;scooterMesh.visible=false;slowMo=1;tutNeed=null;tutStep=0;runStat={coins:0,dist:0,jumps:0,slides:0,roof:0,powers:0,upper:0,stairs:0};lastWhy='';dbgLog('старт');runVisited=new Set();runFull=false;
   diana.rotation.y=0;diana.visible=true;state='play';$('mmTag').textContent='×'+mult;$('mmTag').hidden=mult<2;
   show('menu',false);show('over',false);show('pause',false);show('chance',false);show('missions',false);show('shop',false);show('tut',false);show('hud',true);show('sndBtn',false);
   toast('Беги!');sfx('go');sayHide();sayFlags={};setTimeout(()=>{if(state==='play')say('start',{prio:1})},1100);
 }
 // неуязвимость после «Ещё шанса»: столкновения не считаются
-function hit(){if(invT>0||window.__god)return false;   // __god: бессмертие для автотестов
+/* ---------- отладка (кнопка в паузе): табличка FPS/отрисовки и лог событий, копируется для разбора ---------- */
+const dbgEv=[],dbgFps={t:0,n:0,fps:60,low:0};let lastWhy='';
+function dbgLog(kind,d){dbgEv.push(Object.assign({t:+(performance.now()/1000).toFixed(1),kind,d:Math.round(worldD),fps:Math.round(dbgFps.fps),tier:P.tier,lane:P.lane,y:+P.y.toFixed(2),g:+(P.gnd||0).toFixed(2),spd:+speed.toFixed(1),q:quality},d||{}));if(dbgEv.length>80)dbgEv.shift()}
+function obDesc(o){if(!o)return'';const v={low:'низкое (прыжок)',high:'арка (подкат)',van:o.tier?'прохожий':'фургон/тележка',block:o.ramp?'киоск с рампой':'киоск'}[o.type]||o.type;return v+', дорожка '+(o.lane+1)+(o.tier?' на аллее':' внизу')}
+function dbgTick(raw){dbgFps.t+=raw;dbgFps.n++;if(dbgFps.t<.5)return;dbgFps.fps=dbgFps.n/dbgFps.t;dbgFps.t=dbgFps.n=0;
+  if(state==='play'&&dbgFps.fps<25&&performance.now()-dbgFps.low>3000){dbgFps.low=performance.now();dbgLog('fps<25',{calls:renderer.info.render.calls})}
+  if(!window.__dbg)return;const i=renderer.info.render;
+  $('dbgBox').textContent=`FPS ${dbgFps.fps.toFixed(0)}  качество ${quality}\nотрисовок ${i.calls}  треуг. ${(i.triangles/1000).toFixed(0)}к\nобъектов мира ${world.children.length}  препятствий ${obstacles.length}\nметр ${Math.round(worldD)}  ярус ${P.tier}  y ${P.y.toFixed(2)}  земля ${(P.gnd||0).toFixed(2)}\n${lastWhy}`}
+function dbgText(){return JSON.stringify({ver:'diana-run',ua:navigator.userAgent,scr:[innerWidth,innerHeight,devicePixelRatio],q:quality,events:dbgEv},null,0)}
+function setDbg(on){window.__dbg=on;try{localStorage.setItem('dr_dbg',on?'1':'0')}catch(e){}$('dbgBtn').textContent='Отладка: '+(on?'вкл':'выкл');show('dbgBox',on)}
+$('dbgBtn').addEventListener('click',()=>setDbg(!window.__dbg));
+$('logBtn').addEventListener('click',()=>{const t=dbgText(),done=()=>{$('logBtn').textContent='Скопировано!';setTimeout(()=>$('logBtn').textContent='Скопировать лог',1500)};
+  try{navigator.clipboard.writeText(t).then(done,()=>{fb()})}catch(e){fb()}
+  function fb(){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy')}catch(e){}a.remove();done()}});
+try{setDbg(localStorage.getItem('dr_dbg')==='1')}catch(e){}
+function hit(o,why){if(invT>0||window.__god)return false;
+  lastWhy=(why||'')+(o?': '+obDesc(o):'');dbgLog(shieldT>0?'удар (самокат спас)':'удар',{why:lastWhy,oz:o?+o.z.toFixed(2):null,ox:o?+(o.x-P.x).toFixed(2):null,oh:o&&o.half,olen:o&&o.len,ramp:o&&!!o.ramp});   // __god: бессмертие для автотестов
 
   if(shieldT>0){shieldT=0;invT=1.6;shake=.3;sfx('bump');buzz(40);toast('Самокат спас!');return false}
   gameOver();return true}
@@ -1227,7 +1260,7 @@ function doContinue(cost){const fromRun=Math.min(coins,cost);coins-=fromRun;wall
   state='countdown';cdT=2;cdShown=0;clock.getDelta();say('revive',{prio:4})}
 function finishRun(){const s=Math.floor(score),isNew=s>best;if(isNew){best=s;store.set('dianaRunBest',String(best))}
   wallet+=coins;store.set('dr_wallet',String(wallet));show('chance',false);
-  $('ovScore').textContent=s;$('ovCoins').textContent=coins;$('ovBest').textContent=best;$('ovPlaces').textContent=runVisited.size+'/'+ROUTE.length;show('ovNew',isNew);show('over',true);state='over';if(isNew&&s>0)setTimeout(()=>say('record',{prio:5}),500)}
+  $('ovScore').textContent=s;$('ovCoins').textContent=coins;$('ovBest').textContent=best;$('ovPlaces').textContent=runVisited.size+'/'+ROUTE.length;show('ovNew',isNew);$('ovWhy').textContent=lastWhy?'Причина: '+lastWhy:'';show('ovWhy',!!(window.__dbg&&lastWhy));show('logBtn',!!window.__dbg);show('over',true);state='over';if(isNew&&s>0)setTimeout(()=>say('record',{prio:5}),500)}
 
 /* ---------- input ---------- */
 // лестница: с правой дорожки низа свайп вправо - наверх, с левой дорожки аллеи свайп влево - вниз
@@ -1314,7 +1347,7 @@ function update(dt){
   P.x+=(laneX(P.tier,P.lane)-P.x)*Math.min(1,dt*19);
   // земля под ногами: плитка или крыша киосков/рампа; в стенку киоска сбоку - отскок, в лоб - падение
   const gr=groundAt(P.x,P.y);
-  if(gr.wall){if(gr.wall.off>.35){if(bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}}else if(hit())return}
+  if(gr.wall){if(gr.wall.off>.35){if(bumpCd===0&&invT<=0){dbgLog('отскок от бока киоска',{off:+gr.wall.off.toFixed(2)});P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}}else if(hit(gr.wall.o,'стенка киоска в лоб'))return}
   if(P.ground){if(gr.g>=P.y-.06)P.y=gr.g;else{P.ground=false;P.vy=0}}
   if(!P.ground){P.vy-=G*dt;P.y+=P.vy*dt;if(P.y<=gr.g){const hard=P.vy<-6;P.y=gr.g;P.vy=0;P.ground=true;squash=.16;if(hard){spawnDust();sfx('land')}if(jumpBuf>0)jump()}}
   P.gnd=gr.g;if(P.tier===0&&P.ground&&P.y>BH-.1)runStat.roof+=dz;
@@ -1331,11 +1364,11 @@ function update(dt){
     if(o.z+o.half<-.45||o.z-o.half>.45)continue;
     if(climb||o.tier!==P.tier)continue;const off=Math.abs(P.x-o.x),ry=P.y-TIERS[o.tier].y;
     if(o.type==='van'){
-      if(off<.62&&ry<2.5){if(hit())return}
-      if(off<1.25&&ry<2.5&&bumpCd===0&&invT<=0){P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}
+      if(off<.62&&ry<2.5){if(hit(o,'врезалась'))return}
+      if(off<1.25&&ry<2.5&&bumpCd===0&&invT<=0){dbgLog('задела боком',{what:obDesc(o),off:+off.toFixed(2)});P.lane=P.prev;bumpCd=.4;bumpAnim=.5;shake=.2;sfx('bump');buzz(40);say('bump',{p:.5,gap:3000})}
     }else if(off<.75){
-      if(o.type==='low'&&ry<.95){if(hit())return}
-      if(o.type==='high'&&!(P.slide>0&&ry<.45)&&ry<2.3){if(hit())return}
+      if(o.type==='low'&&ry<.95){if(hit(o,'не перепрыгнула'))return}
+      if(o.type==='high'&&!(P.slide>0&&ry<.45)&&ry<2.3){if(hit(o,'не пролезла под аркой'))return}
     }
   }
   // coins
@@ -1412,7 +1445,7 @@ function updateMenu(dt){
 const clock=new THREE.Clock();
 function loop(){
   requestAnimationFrame(loop);
-  const raw=clock.getDelta(),dt=Math.min(raw,.05);t+=dt;qualityTick(raw);
+  const raw=clock.getDelta(),dt=Math.min(raw,.05);t+=dt;qualityTick(raw);dbgTick(raw);
   if(state==='play')update(dt*slowMo);
   else if(state==='countdown'){cdT-=dt;const n=Math.ceil(cdT);if(n>0&&n!==cdShown){cdShown=n;toast(String(n));sfx('lane')}if(cdT<=0){state='play';toast('Беги!');sfx('go')}}
   else if(state==='dying'||state==='over')updateDying(dt);
@@ -1428,7 +1461,9 @@ function loop(){
 function groundAt(x,y){let g=TIERS[P.tier].y,wall=null;
   for(const o of obstacles){if(o.type!=='block'||o.tier!==P.tier)continue;const off=Math.abs(x-o.x);if(off>1)continue;
     let h=-1;if(o.z>=-.3&&o.z-o.len<=.3)h=BH;else if(o.ramp&&o.z<-.3&&o.z>-RL)h=BH*(1+o.z/RL);
-    if(h<0)continue;if(h<=y+.45)g=Math.max(g,h);else if(!wall||off<wall.off)wall={o,off}}
+    if(h<0)continue;
+    // у ряда с рампой в своей дорожке стенки нет: по рампе и по крыше можно бежать при любой частоте кадров
+    if(h<=y+.45||(o.ramp&&off<.6))g=Math.max(g,h);else if(!wall||off<wall.off)wall={o,off}}
   return {g,wall}}
 applyQuality();
 loop();
@@ -1453,7 +1488,7 @@ applyArt();
 // фоновые файлы сообщают о себе загрузчику, а он - сюда
 window.__lateLoaded=n=>{if(n==='diana-model.js')initModel();else if(n==='diana-assets2.js')applyArt();else if(n==='diana-music.js'){window.__musicPending=false;loadMusic()}};
 setTimeout(()=>{$('splash').classList.add('out');toMenu();setTimeout(()=>show('splash',false),550)},Math.max(250,1900-performance.now()));
-window.__dr={say,gameOver,startClimb,STAIRS,get worldD(){return worldD},get tier(){return P.tier},get climbing(){return !!climb},setWeather,giveShield:()=>{shieldT=20},get shieldT(){return shieldT},get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
+window.__dr={say,gameOver,dbgText,setDbg,get scene(){return scene},startClimb,STAIRS,get worldD(){return worldD},get tier(){return P.tier},get climbing(){return !!climb},setWeather,giveShield:()=>{shieldT=20},get shieldT(){return shieldT},get music(){return [!!musicBuf,!!musicSrc,AC&&AC.state]},get mult(){return mult},get wallet(){return wallet},set wallet(v){wallet=v},get tut(){return tut},get runStat(){return runStat},groundAt,applyOutfit,wear,get quality(){return quality},get anim(){return curAct&&curAct.getClip().name},get model(){return !!mdl},get worldD(){return worldD},world,warp:d=>moveWorld(d),startGame,lane,jump,slide,get state(){return state},get score(){return score},P,get obstacles(){return obstacles}};
 };
 </script>
 <script>
