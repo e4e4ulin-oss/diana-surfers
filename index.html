@@ -318,9 +318,11 @@ const roadTex=tex(256,256,(g,w,h)=>{
   for(let r=0;r<4;r++)for(let c=0;c<4;c++){const x=c*64+(r%2)*32;g.fillStyle=cols[(r*3+c)%4];g.fillRect(x+2,r*64+2,60,60);g.fillRect(x+2-w,r*64+2,60,60)}
   speckle(g,w,h,900,.07);
 });
-const walkTex=tex(128,128,(g,w,h)=>{
-  g.fillStyle='#ffd9c7';g.fillRect(0,0,w,h);g.fillStyle='#ffc4ad';g.fillRect(0,0,w/2,h/2);g.fillRect(w/2,h/2,w/2,h/2);
-  g.strokeStyle='rgba(42,20,70,.12)';g.lineWidth=3;g.strokeRect(0,0,w,h);g.beginPath();g.moveTo(w/2,0);g.lineTo(w/2,h);g.moveTo(0,h/2);g.lineTo(w,h/2);g.stroke();
+// верхняя аллея: тёплая гранитная плитка вразбежку, другого цвета, чем низ
+const walkTex=tex(256,256,(g,w,h)=>{
+  g.fillStyle='#6f5f5c';g.fillRect(0,0,w,h);const cols=['#b39c90','#a68e83','#bda89b','#9c8579','#ad968a'];
+  const bw=64,bh=32;for(let r=0;r<h/bh;r++){const o=(r%2)*bw/2;for(let c=-1;c<=w/bw;c++){g.fillStyle=cols[(r*7+c*3+9)%cols.length];g.fillRect(c*bw+o+1.5,r*bh+1.5,bw-3,bh-3)}}
+  speckle(g,w,h,1600,.06);
 });
 const flowerTex=tex(256,256,(g,w,h)=>{
   g.fillStyle='#4fae55';g.fillRect(0,0,w,h);
@@ -385,6 +387,13 @@ scene.add(mesh(new THREE.BoxGeometry(.7,.1,LEN),0xd6cad0,-3.9,.95,ZC));
 const railT=aTex('railing')||railTex,railH=AS.railing?.8:.62;
 wall(railH,-3.95,1+railH/2,new THREE.MeshLambertMaterial({map:rep(railT,AS.railing?LEN*aspect('railing')/railH:LEN/1.6,1),transparent:true,alphaTest:.5,side:THREE.DoubleSide}),railT,1);
 let waterMat=null;strip(AS.sky_volga?226.2:600,AS.sky_volga?-117:-304.2,-.8,waterMat=new THREE.MeshLambertMaterial({map:rep(waterTex,50,LEN/12),color:AS.tex_water?0x8db6d8:0xffffff,emissive:AS.tex_water?0x000000:0x0d3050}),waterTex);
+// блики на воде: днём солнечные искры, вечером дорожка заката, ночью отражения огней
+const glintTex=()=>tex(256,256,(g,w,h)=>{g.clearRect(0,0,w,h);
+  for(let i=0;i<90;i++){const x=Math.random()*w,y=Math.random()*h,l=rnd(10,26),a=rnd(.5,1);g.fillStyle=`rgba(255,255,255,${a})`;g.beginPath();g.ellipse(x,y,l,rnd(1.6,3),0,0,7);g.fill();g.beginPath();g.ellipse(x-w,y,l,2.2,0,0,7);g.fill()}});
+const glints=[];
+{const W=AS.sky_volga?226.2:600,X=AS.sky_volga?-117:-304.2;
+  for(const k of [0,1]){const t=rep(glintTex(),k?11:15,LEN/(k?18:24)),m=new THREE.MeshBasicMaterial({map:t,transparent:true,opacity:.5,depthWrite:false,blending:THREE.AdditiveBlending,color:0xffffff});
+    strip(W,X,-.78+k*.01,m,t).receiveShadow=false;glints.push({t,m,v:k?-.035:.05})}}
 const farLen=1000;let panoMat=null;
 // панорама: дуга цилиндра вокруг камеры (слева-сзади -> вперёд -> чуть вправо), горизонт картинки (~72% сверху) на высоте глаз;
 // плоская стена раньше обрывалась впереди, у дуги края нет, правый конец плавно растворяется в небе
@@ -437,10 +446,17 @@ const BCOLS=[0xffb3c7,0xffe08a,0xa8e6cf,0xb5c8ff,0xffc9a8,0xd9b8ff,0xfff0d8];
 const bMats={};
 function bMat(c,fl,bays){const k=c+'_'+fl+'_'+bays;if(!bMats[k]){const t=winTex.clone();t.needsUpdate=true;rep(t,bays,fl);bMats[k]=new THREE.MeshLambertMaterial({map:t,color:c})}return bMats[k]}
 const FMATS=[0,1,2,3].map(i=>AS['facade'+i]?nightMat(new THREE.MeshLambertMaterial({map:aTex('facade'+i)})):null);
+// оттенки штукатурки: белый, сливочный, розоватый, голубовато-серый, охра; к ним цвет боковых стен и карнизы
+const FTINT=[0xffffff,0xfff0d8,0xffe2e0,0xe2eaf6,0xffe6b8],FSIDE=[0xe9dfe6,0xeee0cc,0xefd6d4,0xd6dde9,0xeedcb0],FCAP=[0x9b8aa8,0x8a7f76,0x6f7c8f,0xa7988a],FV={};
+function facadeMat(i,j){const k=i+'_'+j;if(!FV[k]){if(j===0)FV[k]=FMATS[i];else{const m=nightMat(new THREE.MeshLambertMaterial({map:aTex('facade'+i),color:FTINT[j]}));FV[k]=m}}return FV[k]}
 function makeBuilding(w){
-  if(FMATS[0]){const i=ri(4),h=w*aspect('facade'+i)*rnd(1,1.3),d=8,fm=FMATS[i],c=0xe9dfe6;
+  if(FMATS[0]){const i=ri(4),j=ri(FTINT.length),h=w*aspect('facade'+i)*rnd(.95,1.4),d=8,fm=facadeMat(i,j),c=FSIDE[j];
     const g=new THREE.Group(),b=new THREE.Mesh(new THREE.BoxGeometry(d,h,w),[M(c),fm,M(0xd8cfd8),M(c),fm,fm]);b.position.y=h/2;g.add(b);
-    const cap=new THREE.Mesh(new THREE.BoxGeometry(d+.3,.35,w+.3),M(0x9b8aa8));cap.position.y=h+.17;g.add(cap);return g}
+    const cc=FCAP[ri(FCAP.length)],cap=new THREE.Mesh(new THREE.BoxGeometry(d+.5,.45,w+.5),M(cc));cap.position.y=h+.22;g.add(cap);
+    // у части домов мансарда или башенка с куполом, как у старых домов на набережной
+    const q=Math.random();if(q<.3){const m=mesh(new THREE.BoxGeometry(d-2,1.8,w-1.6),M(c),.6,h+1.35,0);g.add(m);g.add(mesh(new THREE.BoxGeometry(d-1.6,.3,w-1.2),M(cc),.6,h+2.4,0))}
+    else if(q<.45&&w>10){const tw=mesh(new THREE.CylinderGeometry(1.4,1.4,3,10),M(c),-2.6,h+1.5,-w/2+2);g.add(tw);g.add(mesh(new THREE.SphereGeometry(1.5,10,6,0,Math.PI*2,0,Math.PI/2),M(0x6f8f88),-2.6,h+3,-w/2+2))}
+    return g}
   const h=rnd(9,24),d=8,c=BCOLS[ri(BCOLS.length)],fl=Math.max(3,Math.round(h/3)),wm=bMat(c,fl,Math.max(2,Math.round(w/3))),sm2=bMat(c,fl,2);
   const g=new THREE.Group(),b=new THREE.Mesh(new THREE.BoxGeometry(d,h,w),[M(c),wm,M(0xe9dfe6),M(c),sm2,sm2]);b.position.y=h/2;g.add(b);
   const cap=new THREE.Mesh(new THREE.BoxGeometry(d+.3,.4,w+.3),M(0x9b8aa8));cap.position.y=h+.2;g.add(cap);
@@ -659,6 +675,11 @@ function spawnItem(it,p){
     case'glory':place(makeGlory(),34,2,p,false,40);break;
     case'beach':place(makeBeach(),0,0,p,false,120);break;
   }}
+const poolMat=new THREE.MeshBasicMaterial({map:glowTex,color:0xffc070,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending});
+const lampShadowMat=new THREE.MeshBasicMaterial({map:glowTex,color:0x000000,transparent:true,opacity:.2,depthWrite:false});
+// пятно света под фонарём (ночью) и косая тень от него (днём, солнце со стороны Волги)
+function lampFx(x,y,r,px){const pl=mesh(geo('pool',()=>new THREE.PlaneGeometry(5.2,5.2)),poolMat,0,0,0);pl.rotation.x=-Math.PI/2;place(pl,px,y+.02,r);
+  const sh=mesh(geo('lsh',()=>new THREE.PlaneGeometry(3.6,.42)),lampShadowMat,0,0,0);sh.rotation.x=-Math.PI/2;sh.rotation.z=.98;place(sh,x+.95,y+.015,r+1.45)}
 const lantern=()=>{const g=sp('lantern',4)||makeLantern(),gl=new THREE.Sprite(glowMat);gl.position.y=AS.lantern?3.55:3.3;gl.scale.setScalar(1.7);g.add(gl);return g},tree=()=>sp('tree',rnd(4,5.2))||makeTree();
 // гостиница стоит в ряду домов фасадом к аллее (картинка-билборд разворачивалась к камере и залезала на аллею)
 function slovakiaArt(){const g=new THREE.Group(),W=24,H=W*aspect('lm_slovakia');
@@ -687,7 +708,7 @@ const busyBoulevard=it=>['fedin','rotunda','petr','cinema'].includes(it.lm);
 function genFillTo(h){
   for(;genFill<h;genFill+=3){const r=genFill;
     const stNear=stairNearR(r);if(stairAt(r))place(makeStairs(),0,0,r,true,20);
-    if(r%12===0){if(!itemNear(r,4,busyTerrace)&&!stNear)place(lantern(),4.05,.3,r,true);place(lantern(),-3.95,1,r+6,true);place(lantern(),6.75,2,r+6,true)}
+    if(r%12===0){if(!itemNear(r,4,busyTerrace)&&!stNear){place(lantern(),4.05,.3,r,true);lampFx(4.05,0,r,3.1)}place(lantern(),-3.95,1,r+6,true);lampFx(-3.95,0,r+6,-2.9);place(lantern(),6.75,2,r+6,true);lampFx(6.75,2,r+6,7.8)}
     if(r%24===6&&AS.vase&&!itemNear(r,5,busyTerrace)&&!stNear)place(sp('vase',1.5),5.1,.31,r);
     if(r%9===0&&!itemNear(r,7,busyBoulevard))place(tree(),15.2+rnd(-.2,.2),2,r,true);
     if(r%24===12&&!itemNear(r,6,busyBoulevard)){const b=makeBench();b.rotation.y=-Math.PI/2;place(b,14.7,2,r,true)}
@@ -713,10 +734,10 @@ resetWorld();
 /* ---------- время суток: каждый новый круг маршрута день -> вечер -> ночь -> снова день ---------- */
 const skyCv=document.createElement('canvas');skyCv.width=4;skyCv.height=256;const skyTex=new THREE.CanvasTexture(skyCv);scene.background=skyTex;
 const PRE=[
-  {name:'День',sky:['#4fa6f2','#9ad9ff','#dff4ff'],fog:0xd4efff,hs:0xfff4e0,hg:0x8a78b8,hi:.95,sc:0xfff6e8,si:.75,pano:0xffffff,cloud:0xffffff,water:0x8db6d8,n:0},
-  {name:'Вечер',sky:['#3b3f8f','#f08a5d','#ffd29a'],fog:0xf0b08c,hs:0xffc9a0,hg:0x6a4a7a,hi:.72,sc:0xffa060,si:.7,pano:0xc88a7a,cloud:0xffb090,water:0xa88aa0,n:.55},
-  {name:'Ночь',sky:['#070b26','#16204e','#2f3768'],fog:0x1a2146,hs:0x8a9ad8,hg:0x241c3c,hi:.5,sc:0xa8b8ff,si:.38,pano:0x141a3c,cloud:0x2a3052,water:0x22345f,n:1}];
-let todKey='',todLoop=-1;const tA=new THREE.Color(),tB=new THREE.Color();
+  {name:'День',sh:16,sky:['#4fa6f2','#9ad9ff','#dff4ff'],fog:0xd4efff,hs:0xfff4e0,hg:0x8a78b8,hi:.95,sc:0xfff6e8,si:.75,pano:0xffffff,cloud:0xffffff,water:0x8db6d8,n:0},
+  {name:'Вечер',sh:6.5,sky:['#3b3f8f','#f08a5d','#ffd29a'],fog:0xf0b08c,hs:0xffc9a0,hg:0x6a4a7a,hi:.72,sc:0xffa060,si:.7,pano:0xc88a7a,cloud:0xffb090,water:0xa88aa0,n:.55},
+  {name:'Ночь',sh:13,sky:['#070b26','#16204e','#2f3768'],fog:0x1a2146,hs:0x8a9ad8,hg:0x241c3c,hi:.5,sc:0xa8b8ff,si:.38,pano:0x141a3c,cloud:0x2a3052,water:0x22345f,n:1}];
+let todKey='',todLoop=-1,sunH=16;const tA=new THREE.Color(),tB=new THREE.Color();
 const lerpHex=(a,b,f)=>tA.set(a).lerp(tB.set(b),f).getHex(),lerpCss=(a,b,f)=>'#'+tA.set(a).lerp(tB.set(b),f).getHexString();
 let wDim=1;   // дождь приглушает солнце: 1 - ясно
 function applyTime(d){const k=Math.max(0,Math.floor(d/LOOP)),cur=PRE[k%3],prev=PRE[(k+2)%3];
@@ -733,7 +754,11 @@ function applyTime(d){const k=Math.max(0,Math.floor(d/LOOP)),cur=PRE[k%3],prev=P
   if(ov>0)scene.fog.color.setHex(lerpHex(scene.fog.color.getHex(),0x9aa3b2,ov));
   if(panoMat)panoMat.color.setHex(lerpHex(lerpHex(prev.pano,cur.pano,f),0x6a7080,Math.min(1,ov*1.25)));cloudMat.color.setHex(lerpHex(prev.cloud,cur.cloud,f));if(waterMat&&AS.tex_water)waterMat.color.setHex(lerpHex(prev.water,cur.water,f));
   if(ov>0){cloudMat.color.setHex(lerpHex(cloudMat.color.getHex(),0x8a90a0,ov));if(waterMat)waterMat.color.setHex(lerpHex(waterMat.color.getHex(),0x6f7f92,ov*.7))}
-  const n=prev.n+(cur.n-prev.n)*f;cloudMat.emissive.setHex(lerpHex(0x555566,0x080a16,n));if(ov>0)cloudMat.emissive.multiplyScalar(1-ov*.8);glowMat.opacity=n;farGlowMat.opacity=n*.9;lampMat.emissive.setRGB(.63+.37*n,.54+.3*n,.31+.2*n);
+  const n=prev.n+(cur.n-prev.n)*f;
+  // блики: днём белые, вечером оранжевые и ярче, ночью тёплые и слабые; в непогоду тускнеют
+  for(const gl of glints){gl.m.color.setHex(lerpHex(lerpHex(0xffffff,0xffa24a,Math.min(1,n*1.8)),0xffd9a0,Math.max(0,n-.55)*2.2));gl.m.opacity=(n<.55?.7+n*.5:.98-(n-.55)*1.1)*(.4+.6*wDim)}
+  poolMat.opacity=n*.9;lampShadowMat.opacity=(1-n)*.38*wDim;sunH=(prev.sh||16)+((cur.sh||16)-(prev.sh||16))*f;
+  cloudMat.emissive.setHex(lerpHex(0x555566,0x080a16,n));if(ov>0)cloudMat.emissive.multiplyScalar(1-ov*.8);glowMat.opacity=n;farGlowMat.opacity=n*.9;lampMat.emissive.setRGB(.63+.37*n,.54+.3*n,.31+.2*n);
   for(const m of nightMats)m.emissive.setRGB(.5*n,.4*n,.26*n)}
 applyTime(0);
 
@@ -1114,7 +1139,15 @@ function setWeather(w){weather=w;if(prec){scene.remove(prec);prec=null}
 // погода на забег: зимой (декабрь-февраль) чаще снег, в остальное время иногда дождь
 function pickWeather(){const m=new Date().getMonth(),winter=m===11||m<2;setWeather(winter?(Math.random()<.7?'snow':'none'):(Math.random()<.22?'rain':'none'));
   if(weather==='rain')setTimeout(()=>{if(state==='play')toast('Дождь!')},2600);if(weather==='snow')setTimeout(()=>{if(state==='play')toast('Снег!')},2600)}
-function envTick(dt){const dz=Math.max(0,worldD-envLastD);envLastD=worldD;
+let ambGull=4,ambLap=1,ambHorn=35,ambPan=null,lastStep=0;
+function ambBus(){if(!ambPan){try{ambPan=AC.createStereoPanner();ambPan.pan.value=-.55;ambPan.connect(master)}catch(e){ambPan=master}}return ambPan}
+function ambTick(dt){if(!AC||!soundOn||state!=='play')return;const t0=AC.currentTime,b=ambBus();
+  if((ambGull-=dt)<0){ambGull=rnd(7,15);const n=1+ri(3);for(let i=0;i<n;i++){const t=t0+i*.32;tone(rnd(1500,1900),t,.28,'sine',.022,rnd(1050,1250),b);tone(rnd(2900,3300),t+.02,.2,'sine',.006,2400,b)}}
+  if(P.tier===0&&(ambLap-=dt)<0){ambLap=rnd(1.4,2.8);noise(t0,rnd(.5,.9),.03,'lowpass',rnd(380,620),b)}
+  if((ambHorn-=dt)<0){ambHorn=rnd(55,90);tone(110,t0,1.7,'sawtooth',.018,108,b);tone(146.8,t0+.05,1.6,'sawtooth',.012,145,b);noise(t0,1.6,.012,'lowpass',260,b)}
+  // шаги: на граните внизу глухие, на плитке аллеи звонче
+  const st=Math.floor(phase/Math.PI);if(st!==lastStep){lastStep=st;if(P.ground&&!climb&&!(P.slide>0))P.tier?noise(t0,.045,.03,'bandpass',2600):noise(t0,.06,.035,'lowpass',850)}}
+function envTick(dt){const dz=Math.max(0,worldD-envLastD);envLastD=worldD;ambTick(dt);
   for(const g of gulls){const u=g.userData,f=Math.sin(t*7+u.ph)*.55;u.wl.rotation.z=f;u.wr.rotation.z=-f;
     g.position.z+=dz*.85-u.v*dt;g.position.y+=Math.sin(t*.8+u.ph)*dt*.4;if(g.position.z>25||g.position.z<-200)placeGull(g,true)}
   if(!prec)return;const a=prec.geometry.attributes.position.array,fall=weather==='rain'?24*dt:1.3*dt,st=weather==='rain'?6:3;
@@ -1173,7 +1206,8 @@ function startGame(){
   toast('Беги!');sfx('go');sayHide();sayFlags={};setTimeout(()=>{if(state==='play')say('start',{prio:1})},1100);
 }
 // неуязвимость после «Ещё шанса»: столкновения не считаются
-function hit(){if(invT>0)return false;
+function hit(){if(invT>0||window.__god)return false;   // __god: бессмертие для автотестов
+
   if(shieldT>0){shieldT=0;invT=1.6;shake=.3;sfx('bump');buzz(40);toast('Самокат спас!');return false}
   gameOver();return true}
 const CONT_COST=50;let chanceTimer=0;
@@ -1386,7 +1420,8 @@ function loop(){
   for(const c of coinsArr)if(state!=='play')c.m.rotation.y+=dt*2;
   if(mixer&&state!=='pause'&&state!=='countdown')mixer.update(dt);
   if(musicSrc){const v=state==='play'?.5:(state==='menu'||state==='countdown')?.32:.14;musicBus.gain.setTargetAtTime(v,AC.currentTime,.25)}
-  sun.position.set(P.x-7,16,6);sun.target.position.set(P.x,0,-5);
+  sun.position.set(P.x-7,sunH,6);sun.target.position.set(P.x,0,-5);
+  for(const gl of glints)gl.t.offset.x=(gl.t.offset.x+dt*gl.v)%1;
   if(state!=='pause'&&state!=='countdown')envTick(dt);sayTick();renderer.render(scene,camera);
 }
 // земля в точке игрока: крыша ряда киосков (BH), рампа (линейно от 0 до BH) или плитка; что выше шага - стена
